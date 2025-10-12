@@ -8,6 +8,8 @@ export interface Letter {
   mood: "happy" | "sad" | "excited" | "anxious" | "grateful" | "reflective";
   deliveryDate: string;
   isDelivered: boolean;
+  isDeleted?: boolean;
+  deletedAt?: string;
   images?: {
     url: string;
     publicId: string;
@@ -89,19 +91,24 @@ class LetterService {
       if (letterData.images && letterData.images.length > 0) {
         console.log("📸 Adding images to form data...");
         letterData.images.forEach((image, index) => {
-          // Create file object for React Native
+          console.log(`📸 Processing image ${index}:`, image.uri);
+
+          // Create file object for React Native - correct format
           const imageFile = {
             uri: image.uri,
-            type: "image/jpeg", // Default to JPEG, could be dynamic
             name: `image_${index}.jpg`,
+            type: "image/jpeg", // This is correct for React Native
           } as any;
 
+          console.log("📸 Image file object:", imageFile);
           formData.append("images", imageFile);
 
           if (image.caption) {
             formData.append(`imageCaption${index}`, image.caption);
           }
         });
+
+        console.log("📸 FormData prepared with images");
       }
 
       console.log("🚀 Sending request to server...");
@@ -137,13 +144,50 @@ class LetterService {
     }
   }
 
-  // Delete letter
+  // Soft delete letter (move to trash)
   async deleteLetter(id: string): Promise<void> {
     try {
       await api.delete(`/letters/${id}`);
     } catch (error: any) {
       throw new Error(
         error.response?.data?.message || "Failed to delete letter"
+      );
+    }
+  }
+
+  // Permanently delete letter (cannot be undone)
+  async permanentlyDeleteLetter(id: string): Promise<void> {
+    try {
+      await api.delete(`/letters/${id}/permanent`);
+    } catch (error: any) {
+      throw new Error(
+        error.response?.data?.message || "Failed to permanently delete letter"
+      );
+    }
+  }
+
+  // Restore soft-deleted letter
+  async restoreLetter(id: string): Promise<Letter> {
+    try {
+      const response = await api.patch<{ message: string; letter: Letter }>(
+        `/letters/${id}/restore`
+      );
+      return response.data.letter;
+    } catch (error: any) {
+      throw new Error(
+        error.response?.data?.message || "Failed to restore letter"
+      );
+    }
+  }
+
+  // Get soft-deleted letters (trash)
+  async getDeletedLetters(): Promise<Letter[]> {
+    try {
+      const response = await api.get<Letter[]>("/letters/trash");
+      return response.data;
+    } catch (error: any) {
+      throw new Error(
+        error.response?.data?.message || "Failed to fetch deleted letters"
       );
     }
   }

@@ -66,10 +66,9 @@ export const WriteLetterScreen: React.FC<{ navigation: any }> = ({
         content: content.trim(),
         mood: mood as any,
         deliveryDate: selectedDate.toISOString(),
-        // Temporarily disable images to test basic functionality
-        // images: selectedImage
-        //   ? [{ uri: selectedImage, caption: caption.trim() }]
-        //   : undefined,
+        images: selectedImage
+          ? [{ uri: selectedImage, caption: caption.trim() }]
+          : undefined,
       };
 
       const result = await letterService.createLetter(letterData);

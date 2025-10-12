@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
+  Alert,
   Dimensions,
   Image,
   SafeAreaView,
@@ -10,22 +11,81 @@ import {
   Text,
   TouchableOpacity,
   View,
+  ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { useUser } from "../store/useAppStore";
-import { AVAILABLE_MOODS, useLetterStore } from "../store/letterStore";
 import { useTheme } from "../theme/ThemeContext";
+import { letterService, Letter } from "../services";
+import { useIsFocused } from "@react-navigation/native";
 
 const { width } = Dimensions.get("window");
 
 export const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const { getLockedLetters, getDaysUntilDelivery, calculateProgress } =
-    useLetterStore();
   const { theme, isDark } = useTheme();
   const user = useUser();
+  const isFocused = useIsFocused();
 
-  // Get user ID from auth store
-  const userId = user?.id || "default-user";
-  const lockedLetters = getLockedLetters(userId);
+  const [letters, setLetters] = useState<Letter[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Get locked letters (future delivery dates)
+  const lockedLetters = letters.filter((letter) => {
+    const deliveryDate = new Date(letter.deliveryDate);
+    const now = new Date();
+    return deliveryDate > now && !letter.isDelivered;
+  });
+
+  // Fetch letters from API
+  const fetchLetters = async () => {
+    try {
+      const userLetters = await letterService.getLetters();
+      setLetters(userLetters);
+    } catch (error) {
+      console.error("Failed to fetch letters:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Refresh letters
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchLetters();
+    setRefreshing(false);
+  };
+
+  // Calculate days until delivery
+  const getDaysUntilDelivery = (deliveryDate: string): number => {
+    const delivery = new Date(deliveryDate);
+    const now = new Date();
+    const diffTime = delivery.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return Math.max(0, diffDays);
+  };
+
+  // Calculate progress (0-100%)
+  const calculateProgress = (
+    createdAt: string,
+    deliveryDate: string
+  ): number => {
+    const created = new Date(createdAt);
+    const delivery = new Date(deliveryDate);
+    const now = new Date();
+
+    const totalTime = delivery.getTime() - created.getTime();
+    const elapsedTime = now.getTime() - created.getTime();
+
+    if (totalTime <= 0) return 100;
+    const progress = (elapsedTime / totalTime) * 100;
+    return Math.min(Math.max(0, progress), 100);
+  };
+
+  // Load letters on component mount
+  useEffect(() => {
+    fetchLetters();
+  }, [isFocused]);
 
   const handleWriteLetter = () => {
     navigation.navigate("WriteLetter");
@@ -39,18 +99,46 @@ export const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     navigation.navigate("ReadLetter", { letterId });
   };
 
-  const handleDeleteLetter = (letterId: string) => {
-    // Add confirmation dialog here
-    console.log("Delete letter:", letterId);
+  const handleDeleteLetter = async (letterId: string) => {
+    Alert.alert(
+      "Delete Letter",
+      "Are you sure you want to delete this letter? This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await letterService.deleteLetter(letterId);
+              // Refresh the letters list
+              await fetchLetters();
+              Alert.alert("Success", "Letter deleted successfully");
+            } catch (error: any) {
+              Alert.alert("Error", error.message || "Failed to delete letter");
+            }
+          },
+        },
+      ]
+    );
   };
 
   const getMoodEmoji = (mood: string) => {
-    const moodData = AVAILABLE_MOODS.find((m) => m.value === mood);
-    return moodData?.emoji || "😊";
+    const moodMap: { [key: string]: string } = {
+      happy: "😊",
+      sad: "😢",
+      excited: "🤩",
+      anxious: "😰",
+      grateful: "🙏",
+      reflective: "🤔",
+      calm: "😌",
+      refresh: "🌱",
+    };
+    return moodMap[mood] || "😊";
   };
 
-  const formatDaysUntilDelivery = (letter: any) => {
-    const days = getDaysUntilDelivery(letter);
+  const formatDaysUntilDelivery = (letter: Letter) => {
+    const days = getDaysUntilDelivery(letter.deliveryDate);
     if (days <= 0) return "Opens Today";
     if (days === 1) return "Opens Tomorrow";
     return `Opens In ${days} Days`;
@@ -114,10 +202,21 @@ export const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           </View>
         </View>
 
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          style={styles.content}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+        >
           <Text style={styles.sectionTitle}>Your Locked Letters</Text>
 
-          {lockedLetters.length === 0 ? (
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={theme.colors.primary} />
+              <Text style={styles.loadingText}>Loading your letters...</Text>
+            </View>
+          ) : lockedLetters.length === 0 ? (
             <View style={styles.emptyState}>
               <Ionicons
                 name="mail-open-outline"
@@ -133,9 +232,9 @@ export const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             <View style={styles.lettersContainer}>
               {lockedLetters.map((letter) => (
                 <TouchableOpacity
-                  key={letter.id}
+                  key={letter._id}
                   style={styles.letterCard}
-                  onPress={() => handleLetterPress(letter.id)}
+                  onPress={() => handleLetterPress(letter._id)}
                 >
                   <View style={styles.letterHeader}>
                     <View style={styles.letterIconContainer}>
@@ -146,7 +245,7 @@ export const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                         style={styles.actionButton}
                         onPress={(e) => {
                           e.stopPropagation();
-                          handleDeleteLetter(letter.id);
+                          // Lock icon - maybe show letter details
                         }}
                       >
                         <Ionicons
@@ -159,7 +258,7 @@ export const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                         style={styles.actionButton}
                         onPress={(e) => {
                           e.stopPropagation();
-                          handleDeleteLetter(letter.id);
+                          handleDeleteLetter(letter._id);
                         }}
                       >
                         <Ionicons
@@ -193,12 +292,20 @@ export const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                       <View
                         style={[
                           styles.progressFill,
-                          { width: `${calculateProgress(letter)}%` },
+                          {
+                            width: `${calculateProgress(
+                              letter.createdAt,
+                              letter.deliveryDate
+                            )}%`,
+                          },
                         ]}
                       />
                     </View>
                     <Text style={styles.progressText}>
-                      {Math.round(calculateProgress(letter))}%
+                      {Math.round(
+                        calculateProgress(letter.createdAt, letter.deliveryDate)
+                      )}
+                      %
                     </Text>
                   </View>
                 </TouchableOpacity>
@@ -332,6 +439,7 @@ const createStyles = (colors: any) =>
     },
     lettersContainer: {
       gap: 16,
+      marginBottom: 100,
     },
     letterCard: {
       backgroundColor: colors.card,
@@ -473,6 +581,16 @@ const createStyles = (colors: any) =>
     },
     bottomSpacing: {
       height: 200, // Space for the fixed card
+    },
+    loadingContainer: {
+      alignItems: "center",
+      justifyContent: "center",
+      paddingVertical: 40,
+    },
+    loadingText: {
+      fontSize: 16,
+      color: colors.textSecondary,
+      marginTop: 10,
     },
     writeButton: {
       backgroundColor: colors.primary,
