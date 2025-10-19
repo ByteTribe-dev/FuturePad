@@ -28,9 +28,13 @@ export const LetterCard: React.FC<LetterCardProps> = ({
   const getMoodEmoji = (mood: string) => {
     const moodMap = {
       happy: '😊',
-      excited: '🤗',
+      sad: '😢',
+      calm: '😌',
+      reflective: '🤔',
+      excited: '🤩',
       grateful: '🙏',
-      hopeful: '🌱',
+      anxious: '😰',
+      refresh: '🌱',
     };
     return moodMap[mood as keyof typeof moodMap] || '😊';
   };
@@ -41,8 +45,10 @@ export const LetterCard: React.FC<LetterCardProps> = ({
     shadowColor: theme.colors.shadow,
   };
 
-  const daysUntilDelivery = Math.ceil((new Date(letter.scheduledDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-  const isDelivered = letter.isDelivered || daysUntilDelivery <= 0;
+  const scheduledDate = new Date(letter.scheduledDate);
+  const now = new Date();
+  const daysUntilDelivery = Math.ceil((scheduledDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  const isDelivered = letter.isDelivered || scheduledDate <= now;
 
   return (
     <TouchableOpacity style={cardStyles} onPress={onPress}>
@@ -63,14 +69,14 @@ export const LetterCard: React.FC<LetterCardProps> = ({
           <View style={styles.statusRow}>
             {isDelivered ? (
               <>
-                <Ionicons name="checkmark-circle" size={14} color={theme.colors.success} />
-                <Text style={[styles.statusText, { color: theme.colors.success }]}>Opened</Text>
+                <Ionicons name="checkmark-circle" size={14} color="#FF6B35" />
+                <Text style={[styles.statusText, { color: "#FF6B35" }]}>Opened</Text>
               </>
             ) : (
               <>
                 <Ionicons name="lock-closed" size={14} color={theme.colors.textSecondary} />
                 <Text style={[styles.statusText, { color: theme.colors.textSecondary }]}>
-                  Open in {daysUntilDelivery} Days
+                  {daysUntilDelivery === 1 ? 'Opens Tomorrow' : daysUntilDelivery <= 0 ? 'Opens Today' : `Open In ${daysUntilDelivery} Days`}
                 </Text>
               </>
             )}
@@ -93,14 +99,16 @@ export const LetterCard: React.FC<LetterCardProps> = ({
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 20,
+    padding: 18,
     marginVertical: 8,
-    marginHorizontal: 20,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 2,
+    marginHorizontal: 0,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 53, 0.1)',
   },
   contentRow: {
     flexDirection: 'row',
@@ -108,13 +116,13 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   leftContent: {
-    width: 60,
-    height: 60,
+    width: 70,
+    height: 70,
   },
   thumbnail: {
-    width: 60,
-    height: 60,
-    borderRadius: 12,
+    width: 70,
+    height: 70,
+    borderRadius: 16,
     backgroundColor: '#F0F0F0',
   },
   middleContent: {

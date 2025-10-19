@@ -1,27 +1,21 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import { AppSettings, Language, LanguageOption, ThemeMode } from "../types";
+import { AppSettings, Language, LanguageOption, ThemeMode, User } from "../types";
 
 // Available languages
 export const AVAILABLE_LANGUAGES: LanguageOption[] = [
-  { code: "en", name: "English", nativeName: "English" },
-  { code: "es", name: "Spanish", nativeName: "Español" },
-  { code: "fr", name: "French", nativeName: "Français" },
-  { code: "de", name: "German", nativeName: "Deutsch" },
-  { code: "it", name: "Italian", nativeName: "Italiano" },
-  { code: "pt", name: "Portuguese", nativeName: "Português" },
-  { code: "ru", name: "Russian", nativeName: "Русский" },
-  { code: "zh", name: "Chinese", nativeName: "中文" },
-  { code: "ja", name: "Japanese", nativeName: "日本語" },
-  { code: "ko", name: "Korean", nativeName: "한국어" },
+  { code: "en", name: "English", nativeName: "English", flag: "🇺🇸" },
+  { code: "es", name: "Spanish", nativeName: "Español", flag: "🇪🇸" },
+  { code: "fr", name: "French", nativeName: "Français", flag: "🇫🇷" },
+  { code: "de", name: "German", nativeName: "Deutsch", flag: "🇩🇪" },
+  { code: "it", name: "Italian", nativeName: "Italiano", flag: "🇮🇹" },
+  { code: "pt", name: "Portuguese", nativeName: "Português", flag: "🇵🇹" },
+  { code: "ru", name: "Russian", nativeName: "Русский", flag: "🇷🇺" },
+  { code: "zh", name: "Chinese", nativeName: "中文", flag: "🇨🇳" },
+  { code: "ja", name: "Japanese", nativeName: "日本語", flag: "🇯🇵" },
+  { code: "ko", name: "Korean", nativeName: "한국어", flag: "🇰🇷" },
 ];
-
-interface User {
-  id: string;
-  name: string;
-  email: string;
-}
 
 interface AppState {
   // Authentication
@@ -29,6 +23,7 @@ interface AppState {
   user: User | null;
   authToken: string | null;
   setAuthData: (token: string, user: User) => void;
+  updateUser: (user: Partial<User>) => void;
   logout: () => void;
 
   // Onboarding
@@ -82,6 +77,11 @@ export const useAppStore = create<AppState>()(
           user,
           authToken: token,
         });
+      },
+      updateUser: (updatedUser: Partial<User>) => {
+        set((state) => ({
+          user: state.user ? { ...state.user, ...updatedUser } : null,
+        }));
       },
       logout: () => {
         set({

@@ -8,6 +8,8 @@ Notifications.setNotificationHandler({
     shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
   }),
 });
 
@@ -152,8 +154,9 @@ export class NotificationService {
           },
         },
         trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DATE,
           date: triggerDate,
-        },
+        } as Notifications.DateTriggerInput,
         identifier: notificationId,
       });
 
@@ -198,8 +201,9 @@ export class NotificationService {
           },
         },
         trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DATE,
           date: scheduledDate,
-        },
+        } as Notifications.DateTriggerInput,
         identifier: notificationId,
       });
 
@@ -240,10 +244,11 @@ export class NotificationService {
           },
         },
         trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DAILY,
           hour,
           minute,
           repeats: true,
-        },
+        } as Notifications.CalendarTriggerInput,
         identifier: notificationId,
       });
 

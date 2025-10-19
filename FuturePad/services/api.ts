@@ -7,7 +7,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // API Configuration
 const API_BASE_URL = __DEV__
-  ? "http://localhost:8080/api"
+  ? "http://localhost:3000/api"
   : "https://your-production-api.com/api";
 
 // Create axios instance

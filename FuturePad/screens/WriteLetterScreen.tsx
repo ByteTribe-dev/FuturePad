@@ -15,16 +15,26 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Dimensions,
+  ImageBackground,
 } from "react-native";
+import { Header } from "../components/Header";
 import { useUser } from "../store/useAppStore";
 import { useTheme } from "../theme/ThemeContext";
+import { useTranslation } from "../hooks/useTranslation";
+
+const { width } = Dimensions.get('window');
 import { letterService } from "../services";
 
 const MOODS = [
-  { key: "happy", emoji: "😊", label: "Happy" },
-  { key: "sad", emoji: "😢", label: "Sad" },
-  { key: "calm", emoji: "😌", label: "Calm" },
-  { key: "refresh", emoji: "🌱", label: "Refresh" },
+  { key: "happy", emoji: "😊" },
+  { key: "sad", emoji: "😢" },
+  { key: "calm", emoji: "😌" },
+  { key: "refresh", emoji: "🌱" },
+  { key: "reflective", emoji: "🤔" },
+  { key: "excited", emoji: "🤩" },
+  { key: "grateful", emoji: "🙏" },
+  { key: "anxious", emoji: "😰" },
 ];
 
 export const WriteLetterScreen: React.FC<{ navigation: any }> = ({
@@ -40,22 +50,32 @@ export const WriteLetterScreen: React.FC<{ navigation: any }> = ({
 
   const user = useUser();
   const { theme } = useTheme();
+  const { t } = useTranslation();
 
   const handleSubmitLetter = async () => {
     // Validation
     if (!content.trim()) {
-      Alert.alert("Error", "Please write your letter content");
+      Alert.alert(t('common.error'), t('writeLetter.errorNoContent'));
+      return;
+    }
+
+    if (content.trim().length < 10) {
+      Alert.alert(t('common.error'), t('writeLetter.errorMinLength'));
       return;
     }
 
     if (!selectedDate) {
-      Alert.alert("Error", "Please choose a delivery date");
+      Alert.alert(t('common.error'), t('writeLetter.errorNoDate'));
       return;
     }
 
-    // Check if delivery date is in the future
-    if (selectedDate <= new Date()) {
-      Alert.alert("Error", "Delivery date must be in the future");
+    // Check if delivery date is in the future (at least 1 day from now)
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0);
+
+    if (selectedDate < tomorrow) {
+      Alert.alert(t('common.error'), t('writeLetter.errorPastDate'));
       return;
     }
 
@@ -75,13 +95,13 @@ export const WriteLetterScreen: React.FC<{ navigation: any }> = ({
 
       if (result) {
         Alert.alert(
-          "Letter Scheduled!",
-          `Your letter will be delivered on ${selectedDate.toLocaleDateString()}`,
-          [{ text: "OK", onPress: () => navigation.goBack() }]
+          t('writeLetter.letterScheduled'),
+          t('writeLetter.letterScheduledMessage', { date: selectedDate.toLocaleDateString() }),
+          [{ text: t('common.ok'), onPress: () => navigation.goBack() }]
         );
       }
     } catch (error: any) {
-      Alert.alert("Error", error.message || "Failed to create letter");
+      Alert.alert(t('common.error'), error.message || t('writeLetter.errorNoContent'));
     } finally {
       setLoading(false);
     }
@@ -120,15 +140,15 @@ export const WriteLetterScreen: React.FC<{ navigation: any }> = ({
 
       if (permissionResult.granted === false) {
         Alert.alert(
-          "Permission Required",
-          "Permission to access camera roll is required!"
+          t('writeLetter.permissionRequired'),
+          t('writeLetter.permissionMessage')
         );
         return;
       }
 
       console.log("Launching image library...");
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: "Images", // Use string instead of enum
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [4, 3],
         quality: 0.8,
@@ -144,37 +164,41 @@ export const WriteLetterScreen: React.FC<{ navigation: any }> = ({
       }
     } catch (error) {
       console.error("Error in handleImagePicker:", error);
-      Alert.alert("Error", "Failed to open image picker");
+      Alert.alert(t('common.error'), t('writeLetter.imagePickerError'));
     }
   };
 
+  const styles = createStyles(theme.colors);
+
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backButton}
-        >
-          <Ionicons name="arrow-back" size={24} color="#333" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Write A Letter</Text>
-        <TouchableOpacity style={styles.menuButton}>
-          <Ionicons name="ellipsis-vertical" size={24} color="#333" />
-        </TouchableOpacity>
-      </View>
+    <View style={styles.container}>
+      {/* Background Blobs */}
+      <ImageBackground
+        source={require('../assets/images/home/BlobLeft.png')}
+        style={styles.leftBlob}
+        resizeMode="contain"
+      />
+      <ImageBackground
+        source={require('../assets/images/home/Blob.png')}
+        style={styles.rightBlob}
+        resizeMode="contain"
+      />
+
+      <SafeAreaView style={styles.safeArea}>
+        {/* Header */}
+        <Header title={t('writeLetter.title')} onBack={() => navigation.goBack()} />
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Write Your Letter Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Write Your Letter</Text>
+          <Text style={styles.sectionTitle}>{t('writeLetter.writeYourLetter')}</Text>
           <View style={styles.textInputContainer}>
             <TextInput
               style={styles.textInput}
               value={content}
               onChangeText={setContent}
-              placeholder="Type Here..."
-              placeholderTextColor="#999"
+              placeholder={t('writeLetter.placeholder')}
+              placeholderTextColor={theme.colors.placeholder}
               multiline
               numberOfLines={8}
               textAlignVertical="top"
@@ -184,7 +208,7 @@ export const WriteLetterScreen: React.FC<{ navigation: any }> = ({
 
         {/* Select Mood Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Select Mood</Text>
+          <Text style={styles.sectionTitle}>{t('writeLetter.selectMood')}</Text>
           <View style={styles.moodContainer}>
             {MOODS.map((moodOption) => (
               <TouchableOpacity
@@ -202,7 +226,7 @@ export const WriteLetterScreen: React.FC<{ navigation: any }> = ({
                     mood === moodOption.key && styles.selectedMoodLabel,
                   ]}
                 >
-                  {moodOption.label}
+                  {t(`moods.${moodOption.key}`)}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -212,7 +236,7 @@ export const WriteLetterScreen: React.FC<{ navigation: any }> = ({
         {/* Add Photo Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>
-            Add A Photo That Captures This Feeling
+            {t('writeLetter.addPhoto')}
           </Text>
           <View style={styles.photoContainer}>
             {selectedImage ? (
@@ -238,7 +262,7 @@ export const WriteLetterScreen: React.FC<{ navigation: any }> = ({
                   size={40}
                   color="#D4A574"
                 />
-                <Text style={styles.uploadText}>Upload Image</Text>
+                <Text style={styles.uploadText}>{t('writeLetter.uploadImage')}</Text>
               </TouchableOpacity>
             )}
 
@@ -246,8 +270,8 @@ export const WriteLetterScreen: React.FC<{ navigation: any }> = ({
               style={styles.captionInput}
               value={caption}
               onChangeText={setCaption}
-              placeholder="Add A Caption..."
-              placeholderTextColor="#999"
+              placeholder={t('writeLetter.addCaption')}
+              placeholderTextColor={theme.colors.placeholder}
             />
           </View>
         </View>
@@ -261,18 +285,12 @@ export const WriteLetterScreen: React.FC<{ navigation: any }> = ({
           <Ionicons name="calendar-outline" size={20} color="#fff" />
           <Text style={styles.dateButtonText}>
             {selectedDate
-              ? `Deliver on ${selectedDate.toLocaleDateString()}`
-              : "Choose A Date"}
+              ? t('writeLetter.deliverOn', { date: selectedDate.toLocaleDateString() })
+              : t('writeLetter.chooseDate')}
           </Text>
         </TouchableOpacity>
 
         {/* Submit Button - Show when date and content are provided */}
-        {console.log(
-          "Debug - selectedDate:",
-          selectedDate,
-          "content length:",
-          content.trim().length
-        )}
         {selectedDate && content.trim().length > 0 ? (
           <TouchableOpacity
             style={styles.submitButton}
@@ -282,19 +300,20 @@ export const WriteLetterScreen: React.FC<{ navigation: any }> = ({
             {loading ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.submitButtonText}>Schedule Letter</Text>
+              <Text style={styles.submitButtonText}>{t('writeLetter.scheduleLetter')}</Text>
             )}
           </TouchableOpacity>
         ) : (
           <View style={styles.submitButtonPlaceholder}>
             <Text style={styles.placeholderText}>
               {!selectedDate
-                ? "Please select a date"
-                : "Please write your letter"}
+                ? t('writeLetter.pleaseSelectDate')
+                : t('writeLetter.pleaseWriteLetter')}
             </Text>
           </View>
         )}
       </ScrollView>
+      </SafeAreaView>
 
       {/* Date Picker Modal */}
       <Modal
@@ -307,11 +326,11 @@ export const WriteLetterScreen: React.FC<{ navigation: any }> = ({
           <View style={styles.datePickerContainer}>
             <View style={styles.datePickerHeader}>
               <TouchableOpacity onPress={handleDatePickerCancel}>
-                <Text style={styles.datePickerCancel}>Cancel</Text>
+                <Text style={styles.datePickerCancel}>{t('common.cancel')}</Text>
               </TouchableOpacity>
-              <Text style={styles.datePickerTitle}>Choose Delivery Date</Text>
+              <Text style={styles.datePickerTitle}>{t('writeLetter.chooseDate')}</Text>
               <TouchableOpacity onPress={handleDatePickerConfirm}>
-                <Text style={styles.datePickerConfirm}>Done</Text>
+                <Text style={styles.datePickerConfirm}>{t('common.done')}</Text>
               </TouchableOpacity>
             </View>
             <DateTimePicker
@@ -325,39 +344,36 @@ export const WriteLetterScreen: React.FC<{ navigation: any }> = ({
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFEEE6",
+    backgroundColor: colors.background,
   },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    backgroundColor: "#FFEEE6",
+  safeArea: {
+    flex: 1,
+    zIndex: 1,
   },
-  backButton: {
-    width: 40,
-    height: 40,
-    alignItems: "center",
-    justifyContent: "center",
+  leftBlob: {
+    position: 'absolute',
+    left: -30,
+    top: 100,
+    width: 180,
+    height: 280,
+    opacity: 0.7,
+    zIndex: 0,
   },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#333",
-  },
-  menuButton: {
-    width: 40,
-    height: 40,
-    alignItems: "center",
-    justifyContent: "center",
+  rightBlob: {
+    position: 'absolute',
+    right: -20,
+    top: 200,
+    width: 150,
+    height: 220,
+    opacity: 0.7,
+    zIndex: 0,
   },
   content: {
     flex: 1,
@@ -367,71 +383,81 @@ const styles = StyleSheet.create({
     marginBottom: 30,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 15,
+    fontSize: 17,
+    fontWeight: "700",
+    color: colors.text,
+    marginBottom: 16,
   },
   textInputContainer: {
-    backgroundColor: "#fff",
+    backgroundColor: colors.card,
     borderRadius: 20,
     padding: 20,
     minHeight: 150,
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 4,
     },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: colors.primary + "15",
   },
   textInput: {
     fontSize: 16,
-    color: "#333",
+    color: colors.text,
     textAlignVertical: "top",
     minHeight: 110,
   },
   moodContainer: {
     flexDirection: "row",
+    flexWrap: "wrap",
     justifyContent: "space-between",
-    backgroundColor: "#E8E8E8",
-    borderRadius: 15,
-    padding: 10,
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    padding: 12,
+    gap: 10,
   },
   moodButton: {
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 15,
-    minWidth: 70,
+    backgroundColor: colors.card,
+    borderRadius: 14,
+    padding: 14,
+    width: (width - 64) / 4 - 7.5,
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
-      height: 1,
+      height: 2,
     },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
     elevation: 2,
+    borderWidth: 2,
+    borderColor: "transparent",
   },
   selectedMoodButton: {
-    backgroundColor: "#D4A574",
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.3,
   },
   moodEmoji: {
-    fontSize: 24,
-    marginBottom: 5,
+    fontSize: 26,
+    marginBottom: 6,
   },
   moodLabel: {
-    fontSize: 12,
-    fontWeight: "500",
-    color: "#333",
+    fontSize: 11,
+    fontWeight: "600",
+    color: colors.text,
   },
   selectedMoodLabel: {
-    color: "#fff",
+    color: "#FFFFFF",
+    fontWeight: "700",
   },
   photoContainer: {
-    backgroundColor: "#F5F5F5",
+    backgroundColor: colors.surface,
     borderRadius: 20,
     padding: 20,
     minHeight: 200,
@@ -441,16 +467,17 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     minHeight: 120,
     borderWidth: 2,
-    borderColor: "#E0E0E0",
+    borderColor: colors.primary,
     borderStyle: "dashed",
-    borderRadius: 15,
+    borderRadius: 16,
     marginBottom: 15,
+    backgroundColor: colors.card,
   },
   uploadText: {
     fontSize: 16,
-    color: "#D4A574",
+    color: colors.primary,
     marginTop: 10,
-    fontWeight: "500",
+    fontWeight: "600",
   },
   selectedImageContainer: {
     position: "relative",
@@ -459,62 +486,81 @@ const styles = StyleSheet.create({
   selectedImage: {
     width: "100%",
     height: 120,
-    borderRadius: 15,
+    borderRadius: 16,
   },
   removeImageButton: {
     position: "absolute",
     top: -10,
     right: -10,
-    backgroundColor: "#fff",
+    backgroundColor: colors.card,
     borderRadius: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   captionInput: {
-    backgroundColor: "#fff",
-    borderRadius: 10,
-    paddingHorizontal: 15,
-    paddingVertical: 12,
-    fontSize: 14,
-    color: "#333",
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 15,
+    color: colors.text,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   dateButton: {
-    backgroundColor: "#D4A574",
+    backgroundColor: colors.primary,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 15,
-    borderRadius: 15,
+    paddingVertical: 18,
+    borderRadius: 16,
     marginBottom: 20,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   dateButtonText: {
-    color: "#fff",
+    color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: "600",
-    marginLeft: 8,
+    fontWeight: "700",
+    marginLeft: 10,
   },
   submitButton: {
-    backgroundColor: "#E69A8D",
+    backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 15,
-    borderRadius: 15,
+    paddingVertical: 18,
+    borderRadius: 16,
     marginBottom: 30,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   submitButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
+    color: "#FFFFFF",
+    fontSize: 17,
+    fontWeight: "700",
   },
   submitButtonPlaceholder: {
-    backgroundColor: "#ccc",
+    backgroundColor: colors.surface,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 15,
-    borderRadius: 15,
+    paddingVertical: 18,
+    borderRadius: 16,
     marginBottom: 30,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   placeholderText: {
-    color: "#666",
-    fontSize: 14,
+    color: colors.textSecondary,
+    fontSize: 15,
     fontStyle: "italic",
   },
   datePickerModal: {
@@ -523,51 +569,52 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    backgroundColor: colors.overlay,
     justifyContent: "center",
     alignItems: "center",
     zIndex: 1000,
   },
   datePickerContainer: {
-    backgroundColor: "#fff",
-    borderRadius: 20,
+    backgroundColor: colors.card,
+    borderRadius: 24,
     margin: 20,
     padding: 0,
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 8,
     },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-    minWidth: 300,
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+    minWidth: 320,
   },
   datePickerHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 15,
+    paddingHorizontal: 24,
+    paddingVertical: 18,
     borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
+    borderBottomColor: colors.divider,
   },
   datePickerTitle: {
     fontSize: 18,
-    fontWeight: "600",
-    color: "#333",
+    fontWeight: "700",
+    color: colors.text,
   },
   datePickerCancel: {
     fontSize: 16,
-    color: "#999",
+    color: colors.textSecondary,
+    fontWeight: "600",
   },
   datePickerConfirm: {
     fontSize: 16,
-    color: "#D4A574",
-    fontWeight: "600",
+    color: colors.primary,
+    fontWeight: "700",
   },
   datePicker: {
-    backgroundColor: "#fff",
+    backgroundColor: colors.card,
     borderRadius: 20,
   },
 });

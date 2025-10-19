@@ -79,7 +79,11 @@ export const FilterPopup: React.FC<FilterPopupProps> = ({
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            style={styles.content}
+            contentContainerStyle={styles.contentContainer}
+            showsVerticalScrollIndicator={false}
+          >
             {/* Select Mood Section */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Select Mood</Text>
@@ -191,6 +195,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 16,
     elevation: 8,
+    overflow: 'hidden',
   },
   header: {
     flexDirection: 'row',
@@ -210,8 +215,11 @@ const createStyles = (colors: any) => StyleSheet.create({
     padding: 4,
   },
   content: {
-    flex: 1,
+    maxHeight: 500,
     paddingHorizontal: 24,
+  },
+  contentContainer: {
+    paddingBottom: 10,
   },
   section: {
     paddingVertical: 20,

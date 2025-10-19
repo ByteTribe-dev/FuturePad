@@ -11,6 +11,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { CustomScreenHeader } from '../components/CustomScreenHeader';
 import { useTheme } from '../theme/ThemeContext';
 
 interface NotificationSetting {
@@ -91,16 +92,11 @@ export const NotificationsScreen: React.FC<{ navigation: any }> = ({ navigation 
       
       <SafeAreaView style={styles.safeArea}>
         {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Notifications</Text>
-          <View style={styles.placeholder} />
-        </View>
+        <CustomScreenHeader
+          title="Notifications"
+          showBackButton={true}
+          onBackPress={() => navigation.goBack()}
+        />
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
           {/* Notification Settings */}
@@ -179,35 +175,6 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   safeArea: {
     flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: 'transparent',
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.surface,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  placeholder: {
-    width: 40,
   },
   content: {
     flex: 1,

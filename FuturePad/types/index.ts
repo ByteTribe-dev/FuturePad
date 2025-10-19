@@ -1,7 +1,8 @@
 export interface User {
   id: string;
-  firstName: string;
-  lastName: string;
+  name?: string;
+  firstName?: string;
+  lastName?: string;
   email: string;
   profileImage?: string;
 }
@@ -10,7 +11,7 @@ export interface Letter {
   id: string;
   title: string;
   content: string;
-  mood: 'happy' | 'sad' | 'calm' | 'reflective' | 'excited' | 'grateful' | 'hopeful';
+  mood: 'happy' | 'sad' | 'calm' | 'reflective' | 'excited' | 'grateful' | 'anxious' | 'refresh';
   scheduledDate: Date;
   isDelivered: boolean;
   createdAt: Date;
@@ -23,7 +24,7 @@ export interface Letter {
 export type Mood = {
   emoji: string;
   label: string;
-  value: 'happy' | 'sad' | 'calm' | 'reflective' | 'excited' | 'grateful' | 'hopeful';
+  value: 'happy' | 'sad' | 'calm' | 'reflective' | 'excited' | 'grateful' | 'anxious' | 'refresh';
 };
 
 export type ThemeMode = 'system' | 'light' | 'dark';
@@ -34,6 +35,7 @@ export interface LanguageOption {
   code: Language;
   name: string;
   nativeName: string;
+  flag: string;
 }
 
 export interface Theme {

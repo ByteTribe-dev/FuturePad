@@ -4,15 +4,16 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import { notificationService } from '../services/notificationService';
 import { Letter, Mood } from '../types';
 
-// Available moods based on the design
+// Available moods based on the design - updated to match server and design
 export const AVAILABLE_MOODS: Mood[] = [
   { emoji: '😊', label: 'Happy', value: 'happy' },
   { emoji: '😢', label: 'Sad', value: 'sad' },
   { emoji: '😌', label: 'Calm', value: 'calm' },
+  { emoji: '🌱', label: 'Refresh', value: 'refresh' },
   { emoji: '🤔', label: 'Reflective', value: 'reflective' },
   { emoji: '🤩', label: 'Excited', value: 'excited' },
   { emoji: '🙏', label: 'Grateful', value: 'grateful' },
-  { emoji: '✨', label: 'Hopeful', value: 'hopeful' },
+  { emoji: '😰', label: 'Anxious', value: 'anxious' },
 ];
 
 interface LetterState {

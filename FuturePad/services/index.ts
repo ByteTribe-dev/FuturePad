@@ -2,6 +2,7 @@
 export { default as api } from "./api";
 export { default as authService } from "./authService";
 export { default as letterService } from "./letterService";
+export { default as profileService } from "./profileService";
 
 // Export types
 export type {
@@ -15,6 +16,10 @@ export type {
   CreateLetterData,
   UpdateLetterData,
 } from "./letterService";
+export type {
+  UpdateProfileData,
+  ProfileResponse,
+} from "./profileService";
 
 // Export utilities
 export * from "../utils/apiUtils";

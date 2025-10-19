@@ -1,9 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   Dimensions,
   FlatList,
-  Image,
   SafeAreaView,
   StatusBar,
   StyleSheet,
@@ -11,13 +10,17 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  ImageBackground,
 } from "react-native";
 import { FilterOptions, FilterPopup } from "../components/FilterPopup";
 import { LetterCard } from "../components/LetterCard";
-import { useUser } from "../store/useAppStore";
-import { AVAILABLE_MOODS, useLetterStore } from "../store/letterStore";
+import { CustomScreenHeader } from "../components/CustomScreenHeader";
+import { useAppStore } from "../store/useAppStore";
+import { AVAILABLE_MOODS } from "../store/letterStore";
 import { useTheme } from "../theme/ThemeContext";
 import { Letter } from "../types";
+import { letterService } from "../services";
+import { useIsFocused } from "@react-navigation/native";
 
 const { width } = Dimensions.get("window");
 
@@ -33,45 +36,89 @@ export const LetterArchiveScreen: React.FC<{ navigation: any }> = ({
     moods: [],
     sortBy: "newest",
   });
+  const [letters, setLetters] = useState<Letter[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const { theme, isDark } = useTheme();
-  const user = useUser();
-  const { getDeliveredLetters, getUpcomingLetters, searchLetters } =
-    useLetterStore();
+  const isFocused = useIsFocused();
 
-  const userId = user?.id || "default-user";
+  // Convert API letters to match our Letter interface
+  const convertApiLetter = (apiLetter: any): Letter => ({
+    id: apiLetter._id,
+    title: apiLetter.title,
+    content: apiLetter.content,
+    mood: apiLetter.mood,
+    scheduledDate: new Date(apiLetter.deliveryDate),
+    isDelivered: apiLetter.isDelivered,
+    createdAt: new Date(apiLetter.createdAt),
+    userId: apiLetter.userId,
+    image: apiLetter.featuredImage?.url || apiLetter.images?.[0]?.url,
+    caption: apiLetter.images?.[0]?.caption,
+  });
 
-  // Get letters based on active tab
-  const allLetters = useMemo(() => {
-    if (activeTab === "past") {
-      return getDeliveredLetters(userId);
-    } else {
-      return getUpcomingLetters(userId);
+  // Fetch letters from API
+  const fetchLetters = async () => {
+    try {
+      setLoading(true);
+      const apiLetters = await letterService.getLetters();
+      console.log("📬 Fetched letters for archive:", apiLetters);
+      
+      // Convert API letters to our interface
+      const convertedLetters = apiLetters.map(convertApiLetter);
+      setLetters(convertedLetters);
+    } catch (error) {
+      console.error("Failed to fetch letters:", error);
+    } finally {
+      setLoading(false);
     }
-  }, [activeTab, userId, getDeliveredLetters, getUpcomingLetters]);
+  };
+
+  // Load letters on component mount and focus
+  useEffect(() => {
+    if (isFocused) {
+      fetchLetters();
+    }
+  }, [isFocused]);
+
+  // Get letters based on active tab and isDelivered status
+  const allLetters = useMemo(() => {
+    return letters.filter((letter) => {
+      const now = new Date();
+      const scheduledDate = new Date(letter.scheduledDate);
+      const isOpened = letter.isDelivered || scheduledDate <= now;
+
+      if (activeTab === "past") {
+        // Past letters: delivered OR scheduled date has passed (opened)
+        return isOpened;
+      } else {
+        // Upcoming letters: not delivered AND scheduled date is in future (locked)
+        return !isOpened;
+      }
+    });
+  }, [letters, activeTab]);
 
   // Apply search and filters
   const filteredLetters = useMemo(() => {
-    let letters = allLetters;
+    let result = [...allLetters];
 
     // Apply search
     if (searchQuery.trim()) {
-      letters = searchLetters(userId, searchQuery.trim());
-      // Filter by tab after search
-      letters = letters.filter((letter) =>
-        activeTab === "past"
-          ? letter.isDelivered || new Date() >= letter.scheduledDate
-          : !letter.isDelivered && new Date() < letter.scheduledDate
+      const lowercaseQuery = searchQuery.toLowerCase();
+      result = result.filter(
+        (letter) =>
+          letter.title.toLowerCase().includes(lowercaseQuery) ||
+          letter.content.toLowerCase().includes(lowercaseQuery) ||
+          letter.caption?.toLowerCase().includes(lowercaseQuery)
       );
     }
 
     // Apply mood filter
     if (filters.moods.length > 0) {
-      letters = letters.filter((letter) => filters.moods.includes(letter.mood));
+      result = result.filter((letter) => filters.moods.includes(letter.mood));
     }
 
     // Apply sorting
-    letters = [...letters].sort((a, b) => {
+    result = result.sort((a, b) => {
       switch (filters.sortBy) {
         case "newest":
           return (
@@ -93,8 +140,8 @@ export const LetterArchiveScreen: React.FC<{ navigation: any }> = ({
       }
     });
 
-    return letters;
-  }, [allLetters, searchQuery, filters, userId, searchLetters, activeTab]);
+    return result;
+  }, [allLetters, searchQuery, filters]);
 
   const handleLetterPress = (letter: Letter) => {
     if (
@@ -166,33 +213,36 @@ export const LetterArchiveScreen: React.FC<{ navigation: any }> = ({
         backgroundColor={theme.colors.background}
       />
 
+      {/* Background Blobs */}
+      <ImageBackground
+        source={require('../assets/images/home/BlobLeft.png')}
+        style={styles.leftBlob}
+        resizeMode="contain"
+      />
+      <ImageBackground
+        source={require('../assets/images/home/Blob.png')}
+        style={styles.rightBlob}
+        resizeMode="contain"
+      />
+
       <SafeAreaView style={styles.safeArea}>
         {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.userInfo}>
-            <Image
-              source={{
-                uri: user?.profileImage || "https://i.pravatar.cc/150?img=1",
-              }}
-              style={styles.avatar}
-            />
-            <View style={styles.userTextContainer}>
-              <Text style={styles.welcomeText}>Welcome Back 👋</Text>
-              <Text style={styles.userName}>
-                {user ? `${user.firstName} ${user.lastName}` : "User"}
-              </Text>
-            </View>
-          </View>
-          <View style={styles.headerActions}>
-            <TouchableOpacity style={styles.headerButton}>
-              <Ionicons
-                name="notifications-outline"
-                size={22}
-                color={theme.colors.text}
-              />
-            </TouchableOpacity>
-          </View>
-        </View>
+        <CustomScreenHeader
+          showProfile={true}
+          rightActions={[
+            {
+              icon: "search-outline",
+              onPress: () => console.log("Search"),
+            },
+            {
+              icon: "notifications-outline",
+              onPress: () => navigation.navigate("Notifications"),
+            },
+          ]}
+        />
+
+        {/* Title */}
+        <Text style={styles.title}>Letter Archive</Text>
 
         {/* Search Bar */}
         <View style={styles.searchContainer}>
@@ -209,17 +259,17 @@ export const LetterArchiveScreen: React.FC<{ navigation: any }> = ({
               value={searchQuery}
               onChangeText={setSearchQuery}
             />
+            <TouchableOpacity
+              style={styles.filterButton}
+              onPress={() => setShowFilters(true)}
+            >
+              <Ionicons
+                name="options-outline"
+                size={20}
+                color={theme.colors.text}
+              />
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity
-            style={styles.filterButton}
-            onPress={() => setShowFilters(true)}
-          >
-            <Ionicons
-              name="options-outline"
-              size={20}
-              color={theme.colors.text}
-            />
-          </TouchableOpacity>
         </View>
 
         {/* Tab Navigation */}
@@ -283,60 +333,48 @@ const createStyles = (colors: any) =>
     safeArea: {
       flex: 1,
     },
-    header: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      paddingHorizontal: 20,
-      paddingVertical: 16,
-      backgroundColor: "transparent",
+    leftBlob: {
+      position: 'absolute',
+      left: -20,
+      top: 100,
+      width: 140,
+      height: 220,
+      opacity: 0.6,
+      zIndex: -1,
     },
-    userInfo: {
-      flexDirection: "row",
-      alignItems: "center",
-      flex: 1,
+    rightBlob: {
+      position: 'absolute',
+      right: -10,
+      top: 50,
+      width: 120,
+      height: 180,
+      opacity: 0.6,
+      zIndex: -1,
     },
-    avatar: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      marginRight: 12,
-    },
-    userTextContainer: {
-      flex: 1,
-    },
-    welcomeText: {
-      fontSize: 12,
-      color: colors.textSecondary,
-      marginBottom: 2,
-    },
-    userName: {
-      fontSize: 14,
-      fontWeight: "600",
+    title: {
+      fontSize: 24,
+      fontWeight: "700",
       color: colors.text,
-    },
-    headerActions: {
-      flexDirection: "row",
-      gap: 12,
-    },
-    headerButton: {
-      padding: 8,
-    },
-    searchContainer: {
-      flexDirection: "row",
       paddingHorizontal: 20,
       marginBottom: 20,
-      gap: 12,
+    },
+    searchContainer: {
+      paddingHorizontal: 20,
+      marginBottom: 20,
     },
     searchBar: {
-      flex: 1,
       flexDirection: "row",
       alignItems: "center",
       backgroundColor: colors.surface,
-      borderRadius: 12,
+      borderRadius: 16,
       paddingHorizontal: 16,
-      paddingVertical: 12,
+      paddingVertical: 14,
       gap: 12,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.06,
+      shadowRadius: 4,
+      elevation: 2,
     },
     searchInput: {
       flex: 1,
@@ -344,20 +382,26 @@ const createStyles = (colors: any) =>
       color: colors.text,
     },
     filterButton: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
       backgroundColor: colors.surface,
-      borderRadius: 12,
-      padding: 12,
       alignItems: "center",
       justifyContent: "center",
+      marginLeft: 8,
     },
     tabContainer: {
       flexDirection: "row",
-      paddingHorizontal: 20,
       marginBottom: 20,
       backgroundColor: colors.surface,
-      borderRadius: 12,
+      borderRadius: 16,
       marginHorizontal: 20,
-      padding: 4,
+      padding: 6,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.06,
+      shadowRadius: 4,
+      elevation: 2,
     },
     tab: {
       flex: 1,
@@ -367,6 +411,11 @@ const createStyles = (colors: any) =>
     },
     tabActive: {
       backgroundColor: colors.primary,
+      shadowColor: colors.primary,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.3,
+      shadowRadius: 4,
+      elevation: 2,
     },
     tabText: {
       fontSize: 14,
@@ -375,6 +424,7 @@ const createStyles = (colors: any) =>
     },
     tabTextActive: {
       color: "#FFFFFF",
+      fontWeight: "700",
     },
     listContainer: {
       paddingHorizontal: 20,

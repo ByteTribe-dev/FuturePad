@@ -13,13 +13,14 @@ import {
   View,
   ActivityIndicator,
   RefreshControl,
+  ImageBackground,
 } from "react-native";
 import { useUser } from "../store/useAppStore";
 import { useTheme } from "../theme/ThemeContext";
 import { letterService, Letter } from "../services";
 import { useIsFocused } from "@react-navigation/native";
 
-const { width } = Dimensions.get("window");
+const { width, height } = Dimensions.get("window");
 
 export const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { theme, isDark } = useTheme();
@@ -153,7 +154,24 @@ export const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         backgroundColor={theme.colors.background}
       />
 
-      <SafeAreaView style={styles.safeArea}>
+      {/* Background Blobs */}
+      <ImageBackground
+        source={require('../assets/images/home/BlobLeft.png')}
+        style={styles.leftBlob}
+        resizeMode="contain"
+      />
+      <ImageBackground
+        source={require('../assets/images/home/Blob.png')}
+        style={styles.rightBlob}
+        resizeMode="contain"
+      />
+      <ImageBackground
+        source={require('../assets/images/home/BlobMiddle.png')}
+        style={styles.middleBlob}
+        resizeMode="contain"
+      />
+
+      <SafeAreaView style={[styles.safeArea, { zIndex: 1 }]}>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity
@@ -357,6 +375,33 @@ const createStyles = (colors: any) =>
     safeArea: {
       flex: 1,
     },
+    leftBlob: {
+      position: 'absolute',
+      left: -30,
+      top: 100,
+      width: 180,
+      height: 280,
+      opacity: 0.8,
+      zIndex: 0,
+    },
+    rightBlob: {
+      position: 'absolute',
+      right: -20,
+      top: 60,
+      width: 150,
+      height: 220,
+      opacity: 0.8,
+      zIndex: 0,
+    },
+    middleBlob: {
+      position: 'absolute',
+      right: 30,
+      bottom: height * 0.4,
+      width: 250,
+      height: 350,
+      opacity: 0.7,
+      zIndex: 0,
+    },
     header: {
       flexDirection: "row",
       justifyContent: "space-between",
@@ -443,13 +488,15 @@ const createStyles = (colors: any) =>
     },
     letterCard: {
       backgroundColor: colors.card,
-      borderRadius: 16,
+      borderRadius: 20,
       padding: 20,
-      shadowColor: colors.shadow,
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.08,
-      shadowRadius: 8,
-      elevation: 2,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.12,
+      shadowRadius: 12,
+      elevation: 4,
+      borderWidth: 1,
+      borderColor: colors.primary + "15",
     },
     letterHeader: {
       flexDirection: "row",
@@ -543,17 +590,19 @@ const createStyles = (colors: any) =>
       bottom: 0,
       left: 0,
       right: 0,
-      backgroundColor: "#2D2D2D",
-      borderRadius: 20,
-      padding: 24,
+      backgroundColor: colors.card,
+      borderRadius: 24,
+      padding: 28,
       marginHorizontal: 20,
       marginBottom: 20,
       alignItems: "center",
-      shadowColor: colors.shadow,
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.15,
-      shadowRadius: 12,
-      elevation: 5,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.2,
+      shadowRadius: 16,
+      elevation: 8,
+      borderWidth: 1,
+      borderColor: colors.primary + "20",
     },
     writeCardContent: {
       alignItems: "center",
@@ -569,15 +618,16 @@ const createStyles = (colors: any) =>
       marginBottom: 16,
     },
     writeCardTitle: {
-      fontSize: 18,
+      fontSize: 20,
       fontWeight: "700",
-      color: "#FFFFFF",
+      color: colors.text,
       marginBottom: 8,
     },
     writeCardSubtitle: {
       fontSize: 14,
-      color: "#B0B0B0",
+      color: colors.textSecondary,
       textAlign: "center",
+      lineHeight: 20,
     },
     bottomSpacing: {
       height: 200, // Space for the fixed card

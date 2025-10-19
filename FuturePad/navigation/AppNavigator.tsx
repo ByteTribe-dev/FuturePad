@@ -14,6 +14,7 @@ import { ReadLetterScreen } from "../screens/ReadLetterScreen";
 import { SettingsScreen } from "../screens/SettingsScreen";
 import { SignUpScreen } from "../screens/SignUpScreen";
 import { WriteLetterScreen } from "../screens/WriteLetterScreen";
+import { ProfileScreen } from "../screens/ProfileScreen";
 
 const Stack = createStackNavigator();
 const Drawer = createDrawerNavigator();
@@ -58,6 +59,7 @@ export const AppNavigator: React.FC = () => {
           <>
             <Stack.Screen name="Main" component={MainDrawerNavigator} />
             <Stack.Screen name="ReadLetter" component={ReadLetterScreen} />
+            <Stack.Screen name="Profile" component={ProfileScreen} />
           </>
         )}
       </Stack.Navigator>

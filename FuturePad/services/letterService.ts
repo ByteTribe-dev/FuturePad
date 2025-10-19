@@ -5,7 +5,7 @@ export interface Letter {
   userId: string;
   title: string;
   content: string;
-  mood: "happy" | "sad" | "excited" | "anxious" | "grateful" | "reflective";
+  mood: "happy" | "sad" | "excited" | "anxious" | "grateful" | "reflective" | "calm" | "refresh";
   deliveryDate: string;
   isDelivered: boolean;
   isDeleted?: boolean;
@@ -45,8 +45,8 @@ class LetterService {
   // Get all letters for authenticated user
   async getLetters(): Promise<Letter[]> {
     try {
-      const response = await api.get<Letter[]>("/letters");
-      return response.data;
+      const response = await api.get<{ success: boolean; count: number; letters: Letter[] }>("/letters");
+      return response.data.letters;
     } catch (error: any) {
       throw new Error(
         error.response?.data?.message || "Failed to fetch letters"
@@ -57,8 +57,8 @@ class LetterService {
   // Get single letter by ID
   async getLetter(id: string): Promise<Letter> {
     try {
-      const response = await api.get<Letter>(`/letters/${id}`);
-      return response.data;
+      const response = await api.get<{ success: boolean; letter: Letter }>(`/letters/${id}`);
+      return response.data.letter;
     } catch (error: any) {
       throw new Error(
         error.response?.data?.message || "Failed to fetch letter"
@@ -112,15 +112,15 @@ class LetterService {
       }
 
       console.log("🚀 Sending request to server...");
-      const response = await api.post<Letter>("/letters", formData, {
+      const response = await api.post<{ success: boolean; message: string; letter: Letter }>("/letters", formData, {
         headers: {
           "Content-Type": "multipart/form-data",
         },
         timeout: 30000, // Increase timeout to 30 seconds for image uploads
       });
 
-      console.log("✅ Letter created successfully:", response.data);
-      return response.data;
+      console.log("✅ Letter created successfully:", response.data.letter);
+      return response.data.letter;
     } catch (error: any) {
       console.error("❌ Failed to create letter:", error);
       throw new Error(
@@ -135,8 +135,8 @@ class LetterService {
     letterData: UpdateLetterData
   ): Promise<Letter> {
     try {
-      const response = await api.put<Letter>(`/letters/${id}`, letterData);
-      return response.data;
+      const response = await api.put<{ success: boolean; message: string; letter: Letter }>(`/letters/${id}`, letterData);
+      return response.data.letter;
     } catch (error: any) {
       throw new Error(
         error.response?.data?.message || "Failed to update letter"
@@ -183,8 +183,8 @@ class LetterService {
   // Get soft-deleted letters (trash)
   async getDeletedLetters(): Promise<Letter[]> {
     try {
-      const response = await api.get<Letter[]>("/letters/trash");
-      return response.data;
+      const response = await api.get<{ success: boolean; count: number; letters: Letter[] }>("/letters/trash/all");
+      return response.data.letters;
     } catch (error: any) {
       throw new Error(
         error.response?.data?.message || "Failed to fetch deleted letters"

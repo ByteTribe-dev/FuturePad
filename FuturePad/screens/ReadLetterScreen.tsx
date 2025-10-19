@@ -12,11 +12,12 @@ import {
   Text,
   TouchableOpacity,
   View,
+  ImageBackground,
 } from "react-native";
 import letterService, { Letter } from "../services/letterService";
 import { useTheme } from "../theme/ThemeContext";
 
-const { height } = Dimensions.get("window");
+const { height, width } = Dimensions.get("window");
 
 // Create styles function outside component to avoid re-creation
 const createStyles = (colors: any) =>
@@ -33,12 +34,17 @@ const createStyles = (colors: any) =>
       zIndex: 10,
     },
     imageContainer: {
-      height: height * 0.45,
+      height: height * 0.5,
       position: "relative",
     },
     backgroundImage: {
       width: "100%",
       height: "100%",
+    },
+    noteBgImage: {
+      width: "100%",
+      height: "100%",
+      position: "absolute",
     },
     imageOverlay: {
       position: "absolute",
@@ -98,12 +104,14 @@ const createStyles = (colors: any) =>
     },
     letterContent: {
       padding: 24,
+      paddingTop: 32,
     },
     letterText: {
-      fontSize: 16,
-      lineHeight: 24,
+      fontSize: 17,
+      lineHeight: 28,
       color: colors.text,
-      textAlign: "justify",
+      textAlign: "left",
+      letterSpacing: 0.3,
     },
     captionContainer: {
       marginTop: 24,
@@ -210,11 +218,18 @@ const createStyles = (colors: any) =>
       marginBottom: 32,
     },
     countdownContainer: {
-      backgroundColor: colors.surface,
-      borderRadius: 16,
+      backgroundColor: colors.card,
+      borderRadius: 20,
       padding: 24,
       marginBottom: 32,
       width: "100%",
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.1,
+      shadowRadius: 8,
+      elevation: 3,
+      borderWidth: 1,
+      borderColor: colors.primary + "20",
     },
     countdownTitle: {
       fontSize: 18,
@@ -390,7 +405,7 @@ export const ReadLetterScreen: React.FC<{ navigation: any; route: any }> = ({
       reflective: "🤔",
       excited: "🤩",
       grateful: "🙏",
-      hopeful: "✨",
+      refresh: "🌱",
       anxious: "😰",
     };
     return moodEmojis[mood as keyof typeof moodEmojis] || "😊";
@@ -475,9 +490,9 @@ export const ReadLetterScreen: React.FC<{ navigation: any; route: any }> = ({
 
         {/* Background Image with Lock Overlay */}
         <View style={styles.imageContainer}>
-          <Image
-            source={{ uri: imageUrl }}
-            style={[styles.backgroundImage, styles.blurredContent]}
+          <ImageBackground
+            source={require('../assets/images/home/NoteBg.png')}
+            style={[styles.noteBgImage, styles.blurredContent]}
             resizeMode="cover"
           />
           <LinearGradient
@@ -587,13 +602,13 @@ export const ReadLetterScreen: React.FC<{ navigation: any; route: any }> = ({
 
       {/* Background Image with Overlay */}
       <View style={styles.imageContainer}>
-        <Image
-          source={{ uri: imageUrl }}
-          style={styles.backgroundImage}
+        <ImageBackground
+          source={require('../assets/images/home/NoteBg.png')}
+          style={styles.noteBgImage}
           resizeMode="cover"
         />
         <LinearGradient
-          colors={["rgba(0,0,0,0.3)", "rgba(0,0,0,0.7)"]}
+          colors={["rgba(0,0,0,0.2)", "rgba(0,0,0,0.6)"]}
           style={styles.imageOverlay}
         />
 
