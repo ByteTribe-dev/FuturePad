@@ -6,9 +6,7 @@ import {
   Alert,
   ActivityIndicator,
   Image,
-  Modal,
   Platform,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -22,9 +20,10 @@ import { Header } from "../components/Header";
 import { useUser } from "../store/useAppStore";
 import { useTheme } from "../theme/ThemeContext";
 import { useTranslation } from "../hooks/useTranslation";
+import { letterService } from "../services";
+import CustomSafeAreaView from "@/components/CustomSafeAreaView";
 
 const { width } = Dimensions.get('window');
-import { letterService } from "../services";
 
 const MOODS = [
   { key: "happy", emoji: "😊" },
@@ -37,9 +36,7 @@ const MOODS = [
   { key: "anxious", emoji: "😰" },
 ];
 
-export const WriteLetterScreen: React.FC<{ navigation: any }> = ({
-  navigation,
-}) => {
+export const WriteLetterScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const [content, setContent] = useState("");
   const [mood, setMood] = useState("happy");
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -49,33 +46,63 @@ export const WriteLetterScreen: React.FC<{ navigation: any }> = ({
   const [loading, setLoading] = useState(false);
 
   const user = useUser();
-  const { theme } = useTheme();
+  const { theme,isDark } = useTheme();
   const { t } = useTranslation();
 
-  const handleSubmitLetter = async () => {
-    // Validation
-    if (!content.trim()) {
-      Alert.alert(t('common.error'), t('writeLetter.errorNoContent'));
-      return;
+  const validateInputs = (): { isValid: boolean; error?: string } => {
+    const trimmedContent = content.trim();
+
+    // Content validation
+    if (!trimmedContent) {
+      return { isValid: false, error: t('writeLetter.errorNoContent') };
     }
 
-    if (content.trim().length < 10) {
-      Alert.alert(t('common.error'), t('writeLetter.errorMinLength'));
-      return;
+    if (trimmedContent.length < 10) {
+      return { isValid: false, error: t('writeLetter.errorMinLength') };
     }
 
+    if (trimmedContent.length > 5000) {
+      return { isValid: false, error: 'Letter content cannot exceed 5000 characters' };
+    }
+
+    // Date validation
     if (!selectedDate) {
-      Alert.alert(t('common.error'), t('writeLetter.errorNoDate'));
-      return;
+      return { isValid: false, error: t('writeLetter.errorNoDate') };
     }
 
-    // Check if delivery date is in the future (at least 1 day from now)
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     tomorrow.setHours(0, 0, 0, 0);
 
     if (selectedDate < tomorrow) {
-      Alert.alert(t('common.error'), t('writeLetter.errorPastDate'));
+      return { isValid: false, error: t('writeLetter.errorPastDate') };
+    }
+
+    // Maximum future date validation (1 year from now)
+    const maxDate = new Date();
+    maxDate.setFullYear(maxDate.getFullYear() + 1);
+    if (selectedDate > maxDate) {
+      return { isValid: false, error: 'Delivery date cannot be more than 1 year in the future' };
+    }
+
+    // Mood validation
+    if (!mood || !MOODS.find(m => m.key === mood)) {
+      return { isValid: false, error: 'Please select a valid mood' };
+    }
+
+    // Caption validation (if image is selected)
+    if (selectedImage && caption.trim().length > 200) {
+      return { isValid: false, error: 'Caption cannot exceed 200 characters' };
+    }
+
+    return { isValid: true };
+  };
+
+  const validateAndSubmit = async () => {
+    const validation = validateInputs();
+    
+    if (!validation.isValid) {
+      Alert.alert(t('common.error'), validation.error || 'Invalid input');
       return;
     }
 
@@ -85,10 +112,8 @@ export const WriteLetterScreen: React.FC<{ navigation: any }> = ({
         title: `Letter from ${new Date().toLocaleDateString()}`,
         content: content.trim(),
         mood: mood as any,
-        deliveryDate: selectedDate.toISOString(),
-        images: selectedImage
-          ? [{ uri: selectedImage, caption: caption.trim() }]
-          : undefined,
+        deliveryDate: selectedDate!.toISOString(),
+        images: selectedImage ? [{ uri: selectedImage, caption: caption.trim() }] : undefined,
       };
 
       const result = await letterService.createLetter(letterData);
@@ -96,49 +121,32 @@ export const WriteLetterScreen: React.FC<{ navigation: any }> = ({
       if (result) {
         Alert.alert(
           t('writeLetter.letterScheduled'),
-          t('writeLetter.letterScheduledMessage', { date: selectedDate.toLocaleDateString() }),
+          t('writeLetter.letterScheduledMessage', { date: selectedDate!.toLocaleDateString() }),
           [{ text: t('common.ok'), onPress: () => navigation.goBack() }]
         );
       }
     } catch (error: any) {
-      Alert.alert(t('common.error'), error.message || t('writeLetter.errorNoContent'));
+      Alert.alert(
+        t('common.error'), 
+        error.message || 'Failed to schedule letter. Please try again.'
+      );
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDateChange = (event: any, selectedDate?: Date) => {
-    if (Platform.OS === "android") {
-      setShowDatePicker(false);
+  const handleDateChange = (event: any, date?: Date) => {
+    setShowDatePicker(Platform.OS === 'ios');
+    if (event.type !== 'dismissed' && date) {
+      setSelectedDate(date);
     }
-
-    if (selectedDate && event.type !== "dismissed") {
-      setSelectedDate(selectedDate);
-      if (Platform.OS === "ios") {
-        setShowDatePicker(false);
-      }
-    } else if (event.type === "dismissed") {
-      setShowDatePicker(false);
-    }
-  };
-
-  const handleDatePickerConfirm = () => {
-    setShowDatePicker(false);
-  };
-
-  const handleDatePickerCancel = () => {
-    setShowDatePicker(false);
   };
 
   const handleImagePicker = async () => {
     try {
-      console.log("Image picker started...");
-
-      const permissionResult =
-        await ImagePicker.requestMediaLibraryPermissionsAsync();
-      console.log("Permission result:", permissionResult);
-
-      if (permissionResult.granted === false) {
+      const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (!granted) {
         Alert.alert(
           t('writeLetter.permissionRequired'),
           t('writeLetter.permissionMessage')
@@ -146,7 +154,6 @@ export const WriteLetterScreen: React.FC<{ navigation: any }> = ({
         return;
       }
 
-      console.log("Launching image library...");
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
@@ -154,25 +161,19 @@ export const WriteLetterScreen: React.FC<{ navigation: any }> = ({
         quality: 0.8,
       });
 
-      console.log("Image picker result:", result);
-
-      if (!result.canceled && result.assets && result.assets[0]) {
-        console.log("Setting selected image:", result.assets[0].uri);
+      if (!result.canceled && result.assets?.[0]) {
         setSelectedImage(result.assets[0].uri);
-      } else {
-        console.log("Image picker was canceled or no assets");
       }
     } catch (error) {
-      console.error("Error in handleImagePicker:", error);
       Alert.alert(t('common.error'), t('writeLetter.imagePickerError'));
     }
   };
 
   const styles = createStyles(theme.colors);
+  const isValid = selectedDate && content.trim().length > 0;
 
   return (
     <View style={styles.container}>
-      {/* Background Blobs */}
       <ImageBackground
         source={require('../assets/images/home/BlobLeft.png')}
         style={styles.leftBlob}
@@ -184,166 +185,147 @@ export const WriteLetterScreen: React.FC<{ navigation: any }> = ({
         resizeMode="contain"
       />
 
-      <SafeAreaView style={styles.safeArea}>
-        {/* Header */}
+      <CustomSafeAreaView style={styles.safeArea}>
         <Header title={t('writeLetter.title')} onBack={() => navigation.goBack()} />
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Write Your Letter Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('writeLetter.writeYourLetter')}</Text>
-          <View style={styles.textInputContainer}>
-            <TextInput
-              style={styles.textInput}
-              value={content}
-              onChangeText={setContent}
-              placeholder={t('writeLetter.placeholder')}
-              placeholderTextColor={theme.colors.placeholder}
-              multiline
-              numberOfLines={8}
-              textAlignVertical="top"
-            />
-          </View>
-        </View>
-
-        {/* Select Mood Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('writeLetter.selectMood')}</Text>
-          <View style={styles.moodContainer}>
-            {MOODS.map((moodOption) => (
-              <TouchableOpacity
-                key={moodOption.key}
-                style={[
-                  styles.moodButton,
-                  mood === moodOption.key && styles.selectedMoodButton,
-                ]}
-                onPress={() => setMood(moodOption.key)}
-              >
-                <Text style={styles.moodEmoji}>{moodOption.emoji}</Text>
-                <Text
-                  style={[
-                    styles.moodLabel,
-                    mood === moodOption.key && styles.selectedMoodLabel,
-                  ]}
-                >
-                  {t(`moods.${moodOption.key}`)}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        {/* Add Photo Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            {t('writeLetter.addPhoto')}
-          </Text>
-          <View style={styles.photoContainer}>
-            {selectedImage ? (
-              <View style={styles.selectedImageContainer}>
-                <Image
-                  source={{ uri: selectedImage }}
-                  style={styles.selectedImage}
-                />
-                <TouchableOpacity
-                  style={styles.removeImageButton}
-                  onPress={() => setSelectedImage(null)}
-                >
-                  <Ionicons name="close-circle" size={24} color="#ff4444" />
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <TouchableOpacity
-                style={styles.uploadArea}
-                onPress={handleImagePicker}
-              >
-                <Ionicons
-                  name="cloud-upload-outline"
-                  size={40}
-                  color="#D4A574"
-                />
-                <Text style={styles.uploadText}>{t('writeLetter.uploadImage')}</Text>
-              </TouchableOpacity>
+        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          {/* Letter Content */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>
+              {t('writeLetter.writeYourLetter')}
+              <Text style={styles.charCount}> ({content.length}/5000)</Text>
+            </Text>
+            <View style={styles.textInputContainer}>
+              <TextInput
+                style={styles.textInput}
+                value={content}
+                onChangeText={setContent}
+                placeholder={t('writeLetter.placeholder')}
+                placeholderTextColor={theme.colors.placeholder}
+                multiline
+                numberOfLines={8}
+                textAlignVertical="top"
+                maxLength={5000}
+              />
+            </View>
+            {content.length < 10 && content.length > 0 && (
+              <Text style={styles.validationHint}>
+                Minimum 10 characters required
+              </Text>
             )}
-
-            <TextInput
-              style={styles.captionInput}
-              value={caption}
-              onChangeText={setCaption}
-              placeholder={t('writeLetter.addCaption')}
-              placeholderTextColor={theme.colors.placeholder}
-            />
           </View>
-        </View>
 
-        {/* Choose Date Button */}
-        <TouchableOpacity
-          style={styles.dateButton}
-          onPress={() => setShowDatePicker(true)}
-          disabled={loading}
-        >
-          <Ionicons name="calendar-outline" size={20} color="#fff" />
-          <Text style={styles.dateButtonText}>
-            {selectedDate
-              ? t('writeLetter.deliverOn', { date: selectedDate.toLocaleDateString() })
-              : t('writeLetter.chooseDate')}
-          </Text>
-        </TouchableOpacity>
+          {/* Mood Selection */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>{t('writeLetter.selectMood')}</Text>
+            <View style={styles.moodContainer}>
+              {MOODS.map((item) => (
+                <TouchableOpacity
+                  key={item.key}
+                  style={[styles.moodButton, mood === item.key && styles.selectedMoodButton]}
+                  onPress={() => setMood(item.key)}
+                >
+                  <Text style={styles.moodEmoji}>{item.emoji}</Text>
+                  <Text style={[styles.moodLabel, mood === item.key && styles.selectedMoodLabel]}>
+                    {t(`moods.${item.key}`)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
 
-        {/* Submit Button - Show when date and content are provided */}
-        {selectedDate && content.trim().length > 0 ? (
+          {/* Image Upload */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>{t('writeLetter.addPhoto')}</Text>
+            <View style={styles.photoContainer}>
+              {selectedImage ? (
+                <View style={styles.selectedImageContainer}>
+                  <Image source={{ uri: selectedImage }} style={styles.selectedImage} />
+                  <TouchableOpacity
+                    style={styles.removeImageButton}
+                    onPress={() => setSelectedImage(null)}
+                  >
+                    <Ionicons name="close-circle" size={24} color="#ff4444" />
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity style={styles.uploadArea} onPress={handleImagePicker}>
+                  <Ionicons name="cloud-upload-outline" size={40} color="#D4A574" />
+                  <Text style={styles.uploadText}>{t('writeLetter.uploadImage')}</Text>
+                </TouchableOpacity>
+              )}
+
+              <TextInput
+                style={styles.captionInput}
+                value={caption}
+                onChangeText={setCaption}
+                placeholder={t('writeLetter.addCaption')}
+                placeholderTextColor={theme.colors.placeholder}
+                maxLength={200}
+              />
+              {caption.length > 0 && (
+                <Text style={styles.captionCount}>{caption.length}/200</Text>
+              )}
+            </View>
+          </View>
+
+          {/* Date Picker */}
           <TouchableOpacity
-            style={styles.submitButton}
-            onPress={handleSubmitLetter}
+            style={styles.dateButton}
+            onPress={() => setShowDatePicker(true)}
             disabled={loading}
           >
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.submitButtonText}>{t('writeLetter.scheduleLetter')}</Text>
-            )}
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.submitButtonPlaceholder}>
-            <Text style={styles.placeholderText}>
-              {!selectedDate
-                ? t('writeLetter.pleaseSelectDate')
-                : t('writeLetter.pleaseWriteLetter')}
+            <Ionicons name="calendar-outline" size={20} color="#fff" />
+            <Text style={styles.dateButtonText}>
+              {selectedDate
+                ? t('writeLetter.deliverOn', { date: selectedDate.toLocaleDateString() })
+                : t('writeLetter.chooseDate')}
             </Text>
-          </View>
-        )}
-      </ScrollView>
-      </SafeAreaView>
+          </TouchableOpacity>
+        </ScrollView>
 
-      {/* Date Picker Modal */}
-      <Modal
-        visible={showDatePicker}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={handleDatePickerCancel}
-      >
-        <View style={styles.datePickerModal}>
-          <View style={styles.datePickerContainer}>
-            <View style={styles.datePickerHeader}>
-              <TouchableOpacity onPress={handleDatePickerCancel}>
-                <Text style={styles.datePickerCancel}>{t('common.cancel')}</Text>
-              </TouchableOpacity>
-              <Text style={styles.datePickerTitle}>{t('writeLetter.chooseDate')}</Text>
-              <TouchableOpacity onPress={handleDatePickerConfirm}>
-                <Text style={styles.datePickerConfirm}>{t('common.done')}</Text>
-              </TouchableOpacity>
+        {/* Submit Button - Fixed at bottom */}
+        <View style={styles.buttonContainer}>
+          {isValid ? (
+            <TouchableOpacity
+              style={styles.submitButton}
+              onPress={validateAndSubmit}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.submitButtonText}>{t('writeLetter.scheduleLetter')}</Text>
+              )}
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.submitButtonPlaceholder}>
+              <Text style={styles.placeholderText}>
+                {!selectedDate
+                  ? t('writeLetter.pleaseSelectDate')
+                  : t('writeLetter.pleaseWriteLetter')}
+              </Text>
             </View>
-            <DateTimePicker
-              value={selectedDate || new Date()}
-              mode="date"
-              display={Platform.OS === "ios" ? "spinner" : "default"}
-              minimumDate={new Date()}
-              onChange={handleDateChange}
-              style={styles.datePicker}
-            />
-          </View>
+          )}
         </View>
-      </Modal>
+      </CustomSafeAreaView>
+
+      {/* Native Date Picker */}
+      {showDatePicker && (
+        <DateTimePicker
+          value={selectedDate || new Date()}
+          mode="date"
+          themeVariant={isDark?'dark':'light'}
+          display={Platform.OS === "ios" ? "spinner" : "default"}
+          minimumDate={new Date()}
+          maximumDate={(() => {
+            const maxDate = new Date();
+            maxDate.setFullYear(maxDate.getFullYear() + 1);
+            return maxDate;
+          })()}
+          onChange={handleDateChange}
+        />
+      )}
     </View>
   );
 };
@@ -356,6 +338,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   safeArea: {
     flex: 1,
     zIndex: 1,
+     backgroundColor: colors.background,
   },
   leftBlob: {
     position: 'absolute',
@@ -394,10 +377,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     padding: 20,
     minHeight: 150,
     shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.12,
     shadowRadius: 8,
     elevation: 4,
@@ -427,10 +407,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     padding: 14,
     width: (width - 64) / 4 - 7.5,
     shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 4,
     elevation: 2,
@@ -530,13 +507,18 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontWeight: "700",
     marginLeft: 10,
   },
+  buttonContainer: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    paddingTop: 10,
+    backgroundColor: colors.background,
+  },
   submitButton: {
     backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 18,
     borderRadius: 16,
-    marginBottom: 30,
     shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
@@ -554,7 +536,6 @@ const createStyles = (colors: any) => StyleSheet.create({
     justifyContent: "center",
     paddingVertical: 18,
     borderRadius: 16,
-    marginBottom: 30,
     borderWidth: 1,
     borderColor: colors.border,
   },
@@ -563,58 +544,21 @@ const createStyles = (colors: any) => StyleSheet.create({
     fontSize: 15,
     fontStyle: "italic",
   },
-  datePickerModal: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: colors.overlay,
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 1000,
-  },
-  datePickerContainer: {
-    backgroundColor: colors.card,
-    borderRadius: 24,
-    margin: 20,
-    padding: 0,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 8,
-    minWidth: 320,
-  },
-  datePickerHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 24,
-    paddingVertical: 18,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.divider,
-  },
-  datePickerTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: colors.text,
-  },
-  datePickerCancel: {
-    fontSize: 16,
+  charCount: {
+    fontSize: 13,
     color: colors.textSecondary,
-    fontWeight: "600",
+    fontWeight: "400",
   },
-  datePickerConfirm: {
-    fontSize: 16,
-    color: colors.primary,
-    fontWeight: "700",
+  validationHint: {
+    fontSize: 12,
+    color: "#ff6b6b",
+    marginTop: 6,
+    marginLeft: 4,
   },
-  datePicker: {
-    backgroundColor: colors.card,
-    borderRadius: 20,
+  captionCount: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    textAlign: "right",
+    marginTop: 6,
   },
 });

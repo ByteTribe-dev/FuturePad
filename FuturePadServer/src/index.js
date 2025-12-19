@@ -54,19 +54,34 @@ app.use(globalLimiter);
 
 // MongoDB connection with retry logic
 const connectDB = async (retries = 5) => {
-  for (let i = 0; i < retries; i++) {
+  const uri = process.env.MONGODB_URI;
+
+  // 🔴 Fail fast if env is missing
+  if (!uri) {
+    logger.error('❌ MONGODB_URI is not defined in environment variables');
+    process.exit(1);
+  }
+
+  for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      await mongoose.connect(process.env.MONGODB_URI);
-      logger.info("📥 MongoDB connected successfully");
+      await mongoose.connect(uri, {
+        serverSelectionTimeoutMS: 5000,
+      });
+
+      logger.info('📥 MongoDB connected successfully');
       return;
     } catch (error) {
-      logger.error(`MongoDB connection error (attempt ${i + 1}/${retries}):`, error);
-      if (i === retries - 1) {
-        logger.error("Failed to connect to MongoDB after multiple attempts");
+      logger.error(
+        `❌ MongoDB connection error (attempt ${attempt}/${retries}): ${error.message}`
+      );
+
+      if (attempt === retries) {
+        logger.error('🔥 Failed to connect to MongoDB after multiple attempts');
         process.exit(1);
       }
-      // Wait 5 seconds before retrying
-      await new Promise(resolve => setTimeout(resolve, 5000));
+
+      // ⏳ wait before retry
+      await new Promise((resolve) => setTimeout(resolve, 5000));
     }
   }
 };

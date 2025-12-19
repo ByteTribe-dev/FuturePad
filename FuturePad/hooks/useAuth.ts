@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { authService, LoginCredentials, RegisterData } from "../services";
-import { useAuth as useAuthStore } from "../store/useAppStore";
+import { useAppStore } from "../store/useAppStore";
 import { handleApiError } from "../utils/apiUtils";
 
 export const useAuthActions = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { setAuthData, logout: logoutStore } = useAuthStore();
+  const { setAuthData, logout: logoutStore } = useAppStore();
 
   const login = async (credentials: LoginCredentials) => {
     setLoading(true);

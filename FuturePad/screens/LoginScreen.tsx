@@ -5,19 +5,20 @@ import {
   TextInput,
   StyleSheet,
   TouchableOpacity,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   Image,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons, Ionicons } from "@expo/vector-icons";
 import { Button } from "../components/Button";
 import { authService } from "../services";
 import { useAppStore } from "../store/useAppStore";
-import { isValidEmail } from "../utils/apiUtils";
+import { validateLoginForm, isValidEmail } from "../utils/validationUtils";
+import { toastService } from "../services/toastService";
 
 const SOCIAL_PROVIDERS = [
   { id: "google", icon: require("@/assets/images/social/google.png") },
@@ -26,25 +27,58 @@ const SOCIAL_PROVIDERS = [
 ] as const;
 
 export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const [form, setForm] = useState({ email: "", password: "" });
+  const [form, setForm] = useState<{ email: string; password: string }>({ email: "", password: "" });
+  const [validationErrors, setValidationErrors] = useState<{ email?: string; password?: string }>({});
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const setAuthData = useAppStore((state) => state.setAuthData);
 
-  const updateForm = useCallback((field: keyof typeof form) => 
-    (value: string) => setForm(prev => ({ ...prev, [field]: value })), 
-  []);
+  const updateForm = useCallback((field: keyof { email: string; password: string }) =>
+    (value: string) => {
+      setForm(prev => ({ ...prev, [field]: value }));
+
+      // Validate field in real-time
+      if (field === 'email') {
+        if (!value.trim()) {
+          setValidationErrors(prev => ({ ...prev, email: "Email is required" }));
+        } else if (!isValidEmail(value)) {
+          setValidationErrors(prev => ({ ...prev, email: "Please provide a valid email address" }));
+        } else {
+          setValidationErrors(prev => {
+            const newErrors = { ...prev };
+            delete newErrors.email;
+            return newErrors;
+          });
+        }
+      } else if (field === 'password') {
+        if (!value.trim()) {
+          setValidationErrors(prev => ({ ...prev, password: "Password is required" }));
+        } else {
+          setValidationErrors(prev => {
+            const newErrors = { ...prev };
+            delete newErrors.password;
+            return newErrors;
+          });
+        }
+      }
+    },
+    []
+  );
 
   const handleLogin = useCallback(async () => {
     const { email, password } = form;
-    
-    if (!email.trim() || !password.trim()) {
-      return Alert.alert("Error", "Please fill in all fields");
-    }
 
-    if (!isValidEmail(email)) {
-      return Alert.alert("Error", "Please enter a valid email address");
+    // Validate form using server-matching validation
+    const { isValid, errors } = validateLoginForm(
+      email.trim().toLowerCase(),
+      password
+    );
+
+    if (!isValid) {
+      // Show the first validation error
+      toastService.showError(errors[0]);
+      return;
     }
 
     setLoading(true);
@@ -53,9 +87,9 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         email: email.trim().toLowerCase(),
         password: password.trim(),
       });
-      Alert.alert("Success", "Welcome back!");
+      toastService.showSuccess("Welcome back!");
     } catch (error: any) {
-      Alert.alert("Login Failed", error.message || "Invalid credentials");
+      toastService.showError(error.message || "Login failed");
     } finally {
       setLoading(false);
     }
@@ -98,7 +132,7 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                 <Text style={styles.inputLabel}>Email Address</Text>
               </View>
               <TextInput
-                style={styles.input}
+                style={[styles.input, validationErrors.email && styles.inputError]}
                 value={form.email}
                 onChangeText={updateForm("email")}
                 placeholder="johndoe@gmail.com"
@@ -107,6 +141,9 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                 autoCapitalize="none"
                 returnKeyType="next"
               />
+              {validationErrors.email && (
+                <Text style={styles.errorText}>{validationErrors.email}</Text>
+              )}
             </View>
 
             <View style={styles.inputContainer}>
@@ -116,7 +153,7 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
               </View>
               <View style={styles.passwordContainer}>
                 <TextInput
-                  style={styles.passwordInput}
+                  style={[styles.passwordInput, validationErrors.password && styles.inputError]}
                   value={form.password}
                   onChangeText={updateForm("password")}
                   placeholder="Enter your password"
@@ -125,17 +162,20 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                   returnKeyType="done"
                   onSubmitEditing={handleLogin}
                 />
-                <TouchableOpacity 
+                <TouchableOpacity
                   onPress={togglePasswordVisibility}
                   style={styles.eyeIcon}
                 >
-                  <Ionicons 
-                    name={showPassword ? "eye-off" : "eye"} 
-                    size={20} 
-                    color="#999" 
+                  <Ionicons
+                    name={showPassword ? "eye-off" : "eye"}
+                    size={20}
+                    color="#999"
                   />
                 </TouchableOpacity>
               </View>
+              {validationErrors.password && (
+                <Text style={styles.errorText}>{validationErrors.password}</Text>
+              )}
             </View>
 
             <View style={styles.optionsContainer}>
@@ -353,5 +393,16 @@ const styles = StyleSheet.create({
   signUpLink: {
     color: "#E69A8D",
     fontWeight: "600",
+  },
+  inputError: {
+    borderColor: "#E69A8D",
+    borderWidth: 2,
+    backgroundColor: "#FEF3F2",
+  },
+  errorText: {
+    color: "#D92D20",
+    fontSize: 12,
+    marginTop: 4,
+    marginLeft: 4,
   },
 });

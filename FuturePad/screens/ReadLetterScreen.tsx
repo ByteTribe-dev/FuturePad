@@ -1,678 +1,438 @@
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import {
   Alert,
   Dimensions,
-  Image,
-  SafeAreaView,
+  ImageBackground,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
-  ImageBackground,
 } from "react-native";
 import letterService, { Letter } from "../services/letterService";
 import { useTheme } from "../theme/ThemeContext";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-const { height, width } = Dimensions.get("window");
+const { height } = Dimensions.get("window");
 
-// Create styles function outside component to avoid re-creation
-const createStyles = (colors: any) =>
-  StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: colors.background,
-    },
-    safeArea: {
-      position: "absolute",
-      top: 0,
-      left: 0,
-      right: 0,
-      zIndex: 10,
-    },
-    imageContainer: {
-      height: height * 0.5,
-      position: "relative",
-    },
-    backgroundImage: {
-      width: "100%",
-      height: "100%",
-    },
-    noteBgImage: {
-      width: "100%",
-      height: "100%",
-      position: "absolute",
-    },
-    imageOverlay: {
-      position: "absolute",
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-    },
-    header: {
-      flexDirection: "row",
-      justifyContent: "flex-end",
-      paddingHorizontal: 20,
-      paddingTop: 10,
-    },
-    closeButton: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: "rgba(0,0,0,0.3)",
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    titleOverlay: {
-      position: "absolute",
-      bottom: 40,
-      left: 20,
-      right: 20,
-    },
-    letterTitle: {
-      fontSize: 28,
-      fontWeight: "700",
-      color: "#FFFFFF",
-      marginBottom: 12,
-      textShadowColor: "rgba(0,0,0,0.5)",
-      textShadowOffset: { width: 0, height: 2 },
-      textShadowRadius: 4,
-    },
-    moodContainer: {
-      flexDirection: "row",
-      alignItems: "center",
-    },
-    moodEmoji: {
-      fontSize: 20,
-      marginRight: 8,
-    },
-    moodText: {
-      fontSize: 16,
-      color: "#FFFFFF",
-      fontWeight: "500",
-      textShadowColor: "rgba(0,0,0,0.5)",
-      textShadowOffset: { width: 0, height: 1 },
-      textShadowRadius: 2,
-    },
-    content: {
-      flex: 1,
-      backgroundColor: colors.background,
-    },
-    letterContent: {
-      padding: 24,
-      paddingTop: 32,
-    },
-    letterText: {
-      fontSize: 17,
-      lineHeight: 28,
-      color: colors.text,
-      textAlign: "left",
-      letterSpacing: 0.3,
-    },
-    captionContainer: {
-      marginTop: 24,
-      padding: 16,
-      backgroundColor: colors.surface,
-      borderRadius: 12,
-    },
-    captionLabel: {
-      fontSize: 14,
-      fontWeight: "600",
-      color: colors.textSecondary,
-      marginBottom: 8,
-    },
-    captionText: {
-      fontSize: 14,
-      color: colors.text,
-      lineHeight: 20,
-    },
-    footer: {
-      padding: 24,
-      borderTopWidth: 1,
-      borderTopColor: colors.divider,
-    },
-    deliveryDate: {
-      fontSize: 14,
-      color: colors.textSecondary,
-      textAlign: "center",
-      marginBottom: 16,
-    },
-    deleteButton: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      paddingVertical: 12,
-      gap: 8,
-    },
-    deleteButtonText: {
-      fontSize: 14,
-      color: colors.error,
-      fontWeight: "500",
-    },
-    errorContainer: {
-      flex: 1,
-      justifyContent: "center",
-      alignItems: "center",
-      paddingHorizontal: 40,
-    },
-    errorTitle: {
-      fontSize: 24,
-      fontWeight: "700",
-      marginTop: 16,
-      marginBottom: 8,
-      textAlign: "center",
-    },
-    errorSubtitle: {
-      fontSize: 16,
-      textAlign: "center",
-      lineHeight: 22,
-      marginBottom: 24,
-    },
-    backButton: {
-      backgroundColor: colors.primary,
-      paddingHorizontal: 32,
-      paddingVertical: 12,
-      borderRadius: 8,
-    },
-    backButtonText: {
-      color: "#FFFFFF",
-      fontSize: 16,
-      fontWeight: "600",
-    },
-    loadingContainer: {
-      flex: 1,
-      justifyContent: "center",
-      alignItems: "center",
-    },
-    loadingText: {
-      marginTop: 16,
-      fontSize: 16,
-      color: colors.textSecondary,
-    },
-    // Locked state styles
-    lockedContainer: {
-      flex: 1,
-      justifyContent: "center",
-      alignItems: "center",
-      paddingHorizontal: 40,
-    },
-    lockIcon: {
-      marginBottom: 24,
-    },
-    lockedTitle: {
-      fontSize: 24,
-      fontWeight: "700",
-      color: colors.text,
-      textAlign: "center",
-      marginBottom: 12,
-    },
-    lockedSubtitle: {
-      fontSize: 16,
-      color: colors.textSecondary,
-      textAlign: "center",
-      lineHeight: 22,
-      marginBottom: 32,
-    },
-    countdownContainer: {
-      backgroundColor: colors.card,
-      borderRadius: 20,
-      padding: 24,
-      marginBottom: 32,
-      width: "100%",
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.1,
-      shadowRadius: 8,
-      elevation: 3,
-      borderWidth: 1,
-      borderColor: colors.primary + "20",
-    },
-    countdownTitle: {
-      fontSize: 18,
-      fontWeight: "600",
-      color: colors.text,
-      textAlign: "center",
-      marginBottom: 16,
-    },
-    timeGrid: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-    },
-    timeUnit: {
-      alignItems: "center",
-      flex: 1,
-    },
-    timeNumber: {
-      fontSize: 32,
-      fontWeight: "700",
-      color: colors.primary,
-      marginBottom: 4,
-    },
-    timeLabel: {
-      fontSize: 12,
-      color: colors.textSecondary,
-      textTransform: "uppercase",
-      letterSpacing: 1,
-    },
-    deliveryInfo: {
-      backgroundColor: colors.card,
-      borderRadius: 12,
-      padding: 16,
-      marginBottom: 24,
-      borderLeftWidth: 4,
-      borderLeftColor: colors.primary,
-    },
-    deliveryInfoText: {
-      fontSize: 14,
-      color: colors.text,
-      textAlign: "center",
-    },
-    lockedImageOverlay: {
-      position: "absolute",
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: "rgba(0,0,0,0.8)",
-      justifyContent: "center",
-      alignItems: "center",
-    },
-    blurredContent: {
-      opacity: 0.3,
-      filter: "blur(10px)",
-    },
-  });
+const MOOD_EMOJIS = {
+  happy: "😊", sad: "😢", calm: "😌", reflective: "🤔",
+  excited: "🤩", grateful: "🙏", refresh: "🌱", anxious: "😰",
+};
 
-export const ReadLetterScreen: React.FC<{ navigation: any; route: any }> = ({
-  navigation,
-  route,
-}) => {
-  const { letterId } = route.params;
-  const [letter, setLetter] = useState<Letter | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [timeLeft, setTimeLeft] = useState<{
-    days: number;
-    hours: number;
-    minutes: number;
-    seconds: number;
-  }>({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+const createStyles = (colors: any) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  header: {
+    position: "absolute",
+    top: 0,
+    left: 8,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    zIndex: 10,
+  },
+  closeButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(255,255,255,0.9)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  heroSection: {
+    height: height * 0.4,
+    position: "relative",
+  },
+  heroImage: {
+    width: "100%",
+    height: "100%",
+  },
+  heroOverlay: {
+    position: "absolute",
+    bottom: 10,
+    left: 0,
+    right: 0,
+    padding: 24,
+    paddingBottom: 28,
+  },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+  title: {
+    fontSize: 26,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    flex: 1,
+    marginRight: 12,
+    textShadowColor: "rgba(0,0,0,0.3)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 8,
+  },
+  moodBadge: {
+    backgroundColor: "rgba(255,255,255,0.25)",
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+  },
+  moodText: {
+    fontSize: 22,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.9)",
+    fontWeight: "500",
+    textShadowColor: "rgba(0,0,0,0.3)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  content: {
+    flex: 1,
+    backgroundColor: colors.background,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    marginTop: -24,
+  },
+  scrollContent: {
+    padding: 24,
+    paddingBottom: 100,
+  },
+  greeting: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: colors.text,
+    marginBottom: 16,
+  },
+  letterText: {
+    fontSize: 15,
+    lineHeight: 24,
+    color: colors.text,
+  },
+  // Locked state
+  lockedContent: {
+    alignItems: "center",
+    paddingTop: 32,
+  },
+  lockIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: colors.primary + "15",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
+  },
+  lockedTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: colors.text,
+    marginBottom: 6,
+  },
+  lockedSubtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: "center",
+    marginBottom: 24,
+    paddingHorizontal: 20,
+  },
+  countdownCard: {
+    backgroundColor: colors.surface || colors.card,
+    borderRadius: 16,
+    padding: 20,
+    width: "100%",
+    marginBottom: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  countdownTitle: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: colors.textSecondary,
+    textAlign: "center",
+    marginBottom: 16,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  timeGrid: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  timeUnit: {
+    alignItems: "center",
+    flex: 1,
+  },
+  timeNumber: {
+    fontSize: 32,
+    fontWeight: "800",
+    color: colors.primary,
+    marginBottom: 4,
+  },
+  timeLabel: {
+    fontSize: 10,
+    color: colors.textSecondary,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    fontWeight: "600",
+  },
+  // Bottom Fixed Section
+  bottomSection: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: colors.background,
+    borderTopWidth: 1,
+    borderTopColor: colors.divider || "rgba(0,0,0,0.08)",
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    paddingBottom: 32,
+  },
+  dateRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+    gap: 8,
+    borderWidth:1
+  },
+  dateText: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    fontWeight: "500",
+  },
+  deleteButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 10,
+  },
+  deleteText: {
+    fontSize: 14,
+    color: colors.error || "#FF6B6B",
+    fontWeight: "500",
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 15,
+    color: colors.textSecondary,
+  },
+  errorText: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    textAlign: "center",
+    marginTop: 16,
+  },
+});
 
-  const { theme } = useTheme();
-  const styles = createStyles(theme.colors);
+const TimeUnit = ({ value, label, colors }:any) => (
+  <View style={{ alignItems: "center", flex: 1 }}>
+    <Text style={{ fontSize: 32, fontWeight: "800", color: colors.primary, marginBottom: 4 }}>
+      {String(value).padStart(2, "0")}
+    </Text>
+    <Text style={{ fontSize: 10, color: colors.textSecondary, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: "600" }}>
+      {label}
+    </Text>
+  </View>
+);
+
+const useCountdown = (deliveryDate: string, isLocked: boolean) => {
+  const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
 
   useEffect(() => {
-    const fetchLetter = async () => {
-      if (letterId) {
-        try {
-          setLoading(true);
-          const fetchedLetter = await letterService.getLetter(letterId);
-          setLetter(fetchedLetter);
-        } catch (error) {
-          console.error("Failed to fetch letter:", error);
-          setLetter(null);
-        } finally {
-          setLoading(false);
-        }
+    if (!isLocked) return;
+
+    const calculate = () => {
+      const diff = new Date(deliveryDate).getTime() - Date.now();
+      if (diff > 0) {
+        setTimeLeft({
+          days: Math.floor(diff / (1000 * 60 * 60 * 24)),
+          hours: Math.floor((diff / (1000 * 60 * 60)) % 24),
+          minutes: Math.floor((diff / 1000 / 60) % 60),
+          seconds: Math.floor((diff / 1000) % 60),
+        });
       }
     };
 
-    fetchLetter();
+    calculate();
+    const timer = setInterval(calculate, 1000);
+    return () => clearInterval(timer);
+  }, [deliveryDate, isLocked]);
+
+  return timeLeft;
+};
+
+export const ReadLetterScreen: React.FC<{ navigation: any; route: any }> = ({ navigation, route }) => {
+  const { letterId } = route.params;
+  const [letter, setLetter] = useState<Letter | null>(null);
+  const [loading, setLoading] = useState(true);
+  const { theme } = useTheme();
+  const styles = useMemo(() => createStyles(theme.colors), [theme.colors]);
+
+  useEffect(() => {
+    const fetchLetter = async () => {
+      try {
+        setLoading(true);
+        const data = await letterService.getLetter(letterId);
+        setLetter(data);
+      } catch (error) {
+        console.error("Failed to fetch letter:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    if (letterId) fetchLetter();
   }, [letterId]);
 
-  // Check if letter is locked (delivery date in future)
-  const isLetterLocked = (letter: Letter) => {
-    const now = new Date();
-    const deliveryDate = new Date(letter.deliveryDate);
-    return deliveryDate > now && !letter.isDelivered;
-  };
+  const isLocked = useMemo(() => 
+    letter ? new Date(letter.deliveryDate) > new Date() && !letter.isDelivered : false,
+    [letter]
+  );
 
-  // Calculate time remaining until delivery
-  const calculateTimeLeft = (deliveryDate: string) => {
-    const now = new Date().getTime();
-    const delivery = new Date(deliveryDate).getTime();
-    const difference = delivery - now;
+  const timeLeft = useCountdown(letter?.deliveryDate || "", isLocked);
 
-    if (difference > 0) {
-      return {
-        days: Math.floor(difference / (1000 * 60 * 60 * 24)),
-        hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
-        minutes: Math.floor((difference / 1000 / 60) % 60),
-        seconds: Math.floor((difference / 1000) % 60),
-      };
-    }
-    return { days: 0, hours: 0, minutes: 0, seconds: 0 };
-  };
-
-  // Update countdown timer
-  useEffect(() => {
-    if (letter && isLetterLocked(letter)) {
-      const timer = setInterval(() => {
-        setTimeLeft(calculateTimeLeft(letter.deliveryDate));
-      }, 1000);
-
-      return () => clearInterval(timer);
-    }
-  }, [letter]);
-
-  const handleClose = () => {
-    navigation.goBack();
-  };
-
-  const handleDelete = () => {
+  const handleDelete = useCallback(() => {
     if (!letter) return;
-
-    Alert.alert(
-      "Delete Letter",
-      "Are you sure you want to delete this letter? This action cannot be undone.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await letterService.deleteLetter(letter._id);
-              navigation.goBack();
-            } catch (error) {
-              Alert.alert(
-                "Error",
-                "Failed to delete letter. Please try again."
-              );
-            }
-          },
+    Alert.alert("Delete Letter", "Are you sure you want to delete this letter?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await letterService.deleteLetter(letter._id);
+            navigation.goBack();
+          } catch {
+            Alert.alert("Error", "Failed to delete letter.");
+          }
         },
-      ]
-    );
-  };
+      },
+    ]);
+  }, [letter, navigation]);
 
-  const formatDeliveryDate = (date: string) => {
-    return new Date(date).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-  };
-
-  const getMoodEmoji = (mood: string) => {
-    const moodEmojis = {
-      happy: "😊",
-      sad: "😢",
-      calm: "😌",
-      reflective: "🤔",
-      excited: "🤩",
-      grateful: "🙏",
-      refresh: "🌱",
-      anxious: "😰",
-    };
-    return moodEmojis[mood as keyof typeof moodEmojis] || "😊";
-  };
+  const formatDate = (date: string) =>
+    new Date(date).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" });
 
   if (loading) {
     return (
-      <View style={[styles.container, styles.loadingContainer]}>
-        <SafeAreaView style={styles.safeArea}>
-          <View style={styles.header}>
-            <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
-              <Ionicons name="close" size={24} color="#FFFFFF" />
-            </TouchableOpacity>
-          </View>
-        </SafeAreaView>
-        <Ionicons
-          name="mail-outline"
-          size={80}
-          color={theme.colors.textSecondary}
-        />
-        <Text
-          style={[styles.loadingText, { color: theme.colors.textSecondary }]}
-        >
-          Loading letter...
-        </Text>
+      <View style={[styles.container, styles.centerContainer]}>
+        <Ionicons name="mail-outline" size={60} color={theme.colors.textSecondary} />
+        <Text style={styles.loadingText}>Loading letter...</Text>
       </View>
     );
   }
 
   if (!letter) {
     return (
-      <View style={styles.container}>
-        <SafeAreaView style={styles.safeArea}>
-          <View style={styles.header}>
-            <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
-              <Ionicons name="close" size={24} color="#FFFFFF" />
-            </TouchableOpacity>
-          </View>
-        </SafeAreaView>
-        <View style={styles.errorContainer}>
-          <Ionicons
-            name="mail-open-outline"
-            size={80}
-            color={theme.colors.textSecondary}
-          />
-          <Text style={[styles.errorTitle, { color: theme.colors.text }]}>
-            Letter Not Found
-          </Text>
-          <Text
-            style={[
-              styles.errorSubtitle,
-              { color: theme.colors.textSecondary },
-            ]}
-          >
-            The letter you're looking for doesn't exist or has been deleted.
-          </Text>
-          <TouchableOpacity style={styles.backButton} onPress={handleClose}>
-            <Text style={styles.backButtonText}>Go Back</Text>
-          </TouchableOpacity>
-        </View>
+      <View style={[styles.container, styles.centerContainer]}>
+        <Ionicons name="mail-open-outline" size={60} color={theme.colors.textSecondary} />
+        <Text style={styles.errorText}>Letter not found</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginTop: 20 }}>
+          <Text style={{ color: theme.colors.primary, fontWeight: "600" }}>Go Back</Text>
+        </TouchableOpacity>
       </View>
     );
   }
 
-  // Check if letter is locked
-  const locked = isLetterLocked(letter);
+  const moodEmoji = MOOD_EMOJIS[letter.mood as keyof typeof MOOD_EMOJIS] || "😊";
 
-  // Get the featured image or first image, fallback to placeholder
-  const imageUrl =
-    letter.featuredImage?.url ||
-    (letter.images && letter.images.length > 0 ? letter.images[0].url : null) ||
-    "https://picsum.photos/400/300";
-
-  if (locked) {
-    return (
-      <View style={styles.container}>
-        <StatusBar
-          barStyle="light-content"
-          backgroundColor="transparent"
-          translucent
-        />
-
-        {/* Background Image with Lock Overlay */}
-        <View style={styles.imageContainer}>
-          <ImageBackground
-            source={require('../assets/images/home/NoteBg.png')}
-            style={[styles.noteBgImage, styles.blurredContent]}
-            resizeMode="cover"
-          />
-          <LinearGradient
-            colors={["rgba(0,0,0,0.6)", "rgba(0,0,0,0.9)"]}
-            style={styles.imageOverlay}
-          />
-
-          {/* Lock overlay on image */}
-          <View style={styles.lockedImageOverlay}>
-            <Ionicons name="lock-closed" size={60} color="#FFFFFF" />
-          </View>
-
-          {/* Header */}
-          <SafeAreaView style={styles.safeArea}>
-            <View style={styles.header}>
-              <TouchableOpacity
-                onPress={handleClose}
-                style={styles.closeButton}
-              >
-                <Ionicons name="close" size={24} color="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
-          </SafeAreaView>
-
-          {/* Title Overlay - Still show title but indicate it's locked */}
-          <View style={styles.titleOverlay}>
-            <Text style={styles.letterTitle}>🔒 {letter.title}</Text>
-            <View style={styles.moodContainer}>
-              <Text style={styles.moodEmoji}>🔒</Text>
-              <Text style={styles.moodText}>Letter is Locked</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Locked Content */}
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          <View style={styles.lockedContainer}>
-            <Ionicons
-              name="time-outline"
-              size={80}
-              color={theme.colors.primary}
-              style={styles.lockIcon}
-            />
-
-            <Text style={styles.lockedTitle}>Letter Not Yet Available</Text>
-            <Text style={styles.lockedSubtitle}>
-              This letter is scheduled for future delivery. Please wait until
-              the delivery date to read its contents.
-            </Text>
-
-            {/* Countdown Timer */}
-            <View style={styles.countdownContainer}>
-              <Text style={styles.countdownTitle}>Time Until Delivery</Text>
-              <View style={styles.timeGrid}>
-                <View style={styles.timeUnit}>
-                  <Text style={styles.timeNumber}>{timeLeft.days}</Text>
-                  <Text style={styles.timeLabel}>Days</Text>
-                </View>
-                <View style={styles.timeUnit}>
-                  <Text style={styles.timeNumber}>{timeLeft.hours}</Text>
-                  <Text style={styles.timeLabel}>Hours</Text>
-                </View>
-                <View style={styles.timeUnit}>
-                  <Text style={styles.timeNumber}>{timeLeft.minutes}</Text>
-                  <Text style={styles.timeLabel}>Minutes</Text>
-                </View>
-                <View style={styles.timeUnit}>
-                  <Text style={styles.timeNumber}>{timeLeft.seconds}</Text>
-                  <Text style={styles.timeLabel}>Seconds</Text>
-                </View>
-              </View>
-            </View>
-
-            {/* Delivery Information */}
-            <View style={styles.deliveryInfo}>
-              <Text style={styles.deliveryInfoText}>
-                📅 Scheduled delivery: {formatDeliveryDate(letter.deliveryDate)}
-              </Text>
-            </View>
-
-            {/* Delete button still available for locked letters */}
-            <TouchableOpacity
-              style={styles.deleteButton}
-              onPress={handleDelete}
-            >
-              <Ionicons
-                name="trash-outline"
-                size={16}
-                color={theme.colors.error}
-              />
-              <Text style={styles.deleteButtonText}>Delete This Letter</Text>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
-      </View>
-    );
-  }
-
-  // Regular unlocked letter view
   return (
     <View style={styles.container}>
-      <StatusBar
-        barStyle="light-content"
-        backgroundColor="transparent"
-        translucent
-      />
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
-      {/* Background Image with Overlay */}
-      <View style={styles.imageContainer}>
+      {/* Hero Section */}
+      <View style={styles.heroSection}>
         <ImageBackground
-          source={require('../assets/images/home/NoteBg.png')}
-          style={styles.noteBgImage}
+          source={require("../assets/images/home/NoteBg.png")}
+          style={styles.heroImage}
           resizeMode="cover"
-        />
-        <LinearGradient
-          colors={["rgba(0,0,0,0.2)", "rgba(0,0,0,0.6)"]}
-          style={styles.imageOverlay}
-        />
-
-        {/* Header */}
-        <SafeAreaView style={styles.safeArea}>
-          <View style={styles.header}>
-            <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
-              <Ionicons name="close" size={24} color="#FFFFFF" />
-            </TouchableOpacity>
-          </View>
-        </SafeAreaView>
-
-        {/* Title Overlay */}
-        <View style={styles.titleOverlay}>
-          <Text style={styles.letterTitle}>{letter.title}</Text>
-          <View style={styles.moodContainer}>
-            <Text style={styles.moodEmoji}>{getMoodEmoji(letter.mood)}</Text>
-            <Text style={styles.moodText}>
-              Mood: {letter.mood.charAt(0).toUpperCase() + letter.mood.slice(1)}
+        >
+          <View style={styles.heroOverlay}>
+            <View style={styles.titleRow}>
+              <Text style={styles.title}>
+                {isLocked && <Ionicons name="lock-closed" size={22} color="#FFFFFF" />} {letter.title}
+              </Text>
+              <View style={styles.moodBadge}>
+                <Text style={styles.moodText}>{moodEmoji}</Text>
+              </View>
+            </View>
+            <Text style={styles.subtitle}>
+              {isLocked ? "Letter is Locked" : `Mood: ${letter.mood.charAt(0).toUpperCase() + letter.mood.slice(1)}`}
             </Text>
           </View>
-        </View>
+        </ImageBackground>
       </View>
+
+      {/* Header */}
+      <SafeAreaView style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.closeButton}>
+          <Ionicons name="close" size={24} color="#222" />
+        </TouchableOpacity>
+      </SafeAreaView>
 
       {/* Content */}
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.letterContent}>
-          <Text style={styles.letterText}>{letter.content}</Text>
-
-          {/* Show image captions if available */}
-          {letter.images &&
-            letter.images.length > 0 &&
-            letter.images.some((img) => img.caption) && (
-              <View style={styles.captionContainer}>
-                <Text style={styles.captionLabel}>Image Captions:</Text>
-                {letter.images.map((image, index) =>
-                  image.caption ? (
-                    <Text key={index} style={styles.captionText}>
-                      {index + 1}. {image.caption}
-                    </Text>
-                  ) : null
-                )}
+        <View style={styles.scrollContent}>
+          {isLocked ? (
+            <View style={styles.lockedContent}>
+              <View style={styles.lockIconContainer}>
+                <Ionicons name="time" size={40} color={theme.colors.primary} />
               </View>
-            )}
-        </View>
+              <Text style={styles.lockedTitle}>Letter Locked</Text>
+              <Text style={styles.lockedSubtitle}>
+                This letter will unlock on the scheduled date
+              </Text>
 
-        {/* Footer */}
-        <View style={styles.footer}>
-          <Text style={styles.deliveryDate}>
-            {letter.isDelivered
-              ? `Delivered ${formatDeliveryDate(letter.deliveryDate)}`
-              : `Scheduled for ${formatDeliveryDate(letter.deliveryDate)}`}
-          </Text>
-
-          <TouchableOpacity style={styles.deleteButton} onPress={handleDelete}>
-            <Ionicons
-              name="trash-outline"
-              size={16}
-              color={theme.colors.error}
-            />
-            <Text style={styles.deleteButtonText}>Delete This Letter</Text>
-          </TouchableOpacity>
+              <View style={styles.countdownCard}>
+                <Text style={styles.countdownTitle}>Opens In</Text>
+                <View style={styles.timeGrid}>
+                  <TimeUnit value={timeLeft.days} label="Days" colors={theme.colors} />
+                  <TimeUnit value={timeLeft.hours} label="Hrs" colors={theme.colors} />
+                  <TimeUnit value={timeLeft.minutes} label="Min" colors={theme.colors} />
+                  <TimeUnit value={timeLeft.seconds} label="Sec" colors={theme.colors} />
+                </View>
+              </View>
+            </View>
+          ) : (
+            <>
+              <Text style={styles.greeting}>Dear Me In Spring,</Text>
+              <Text style={styles.letterText}>{letter.content}</Text>
+            </>
+          )}
         </View>
       </ScrollView>
+
+      {/* Bottom Fixed Section */}
+      <View style={styles.bottomSection}>
+        <View style={[styles.dateRow,{borderColor:theme.colors.primary,width:'60%',alignSelf:'center',paddingHorizontal:12,paddingVertical:8,borderRadius:12}]}>
+          <Ionicons 
+            name={isLocked ? "calendar-outline" : "checkmark-circle"} 
+            size={16} 
+            color={theme.colors.textSecondary} 
+          />
+          <Text style={styles.dateText}>
+            {isLocked ? `Delivers ${formatDate(letter.deliveryDate)}` : `Received ${formatDate(letter.deliveryDate)}`}
+          </Text>
+        </View>
+
+        <TouchableOpacity style={styles.deleteButton} onPress={handleDelete}>
+          <Ionicons name="trash-outline" size={18} color={theme.colors.error || "#FF6B6B"} />
+          <Text style={styles.deleteText}>Delete This Letter</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 };

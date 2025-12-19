@@ -7,6 +7,8 @@ import { notificationService } from "./services/notificationService";
 import { performanceService } from "./services/performanceService";
 import { syncService } from "./services/syncService";
 import { ThemeProvider } from "./theme/ThemeContext";
+import Toast from "react-native-toast-message";
+import toastConfig from "./utils/toastConfig";
 
 export default function App() {
   useEffect(() => {
@@ -42,6 +44,7 @@ export default function App() {
     <SafeAreaProvider>
       <ThemeProvider>
         <StatusBar style="auto" />
+        <Toast config={toastConfig } />
         <AppNavigator />
       </ThemeProvider>
     </SafeAreaProvider>

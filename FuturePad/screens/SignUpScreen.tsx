@@ -5,19 +5,20 @@ import {
   TextInput,
   StyleSheet,
   TouchableOpacity,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   Image,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons, Ionicons } from "@expo/vector-icons";
 import { Button } from "../components/Button";
 import { authService } from "../services";
 import { useAppStore } from "../store/useAppStore";
-import { isValidEmail, isValidPassword } from "../utils/apiUtils";
+import { validateRegistrationForm, isValidEmail, getPasswordValidationErrors, getNameValidationErrors } from "../utils/validationUtils";
+import { toastService } from "../services/toastService";
 
 const SOCIAL_PROVIDERS = [
   { id: "google", icon: require("@/assets/images/social/google.png") },
@@ -25,51 +26,164 @@ const SOCIAL_PROVIDERS = [
   { id: "facebook", icon: require("@/assets/images/social/facebook.png") },
 ] as const;
 
-interface FormState {
-  firstName: string;
-  lastName: string;
-  email: string;
-  password: string;
-  confirmPassword: string;
-}
-
 export const SignUpScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const [form, setForm] = useState<FormState>({
+  const [form, setForm] = useState<{
+    firstName: string;
+    lastName: string;
+    email: string;
+    password: string;
+    confirmPassword: string;
+  }>({
     firstName: "",
     lastName: "",
     email: "",
     password: "",
     confirmPassword: "",
   });
+  const [validationErrors, setValidationErrors] = useState<{
+    email?: string;
+    password?: string;
+    name?: string;
+    confirmPassword?: string;
+  }>({});
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const setAuthData = useAppStore((state) => state.setAuthData);
 
-  const updateForm = useCallback(
-    (field: keyof FormState) => (value: string) =>
-      setForm((prev) => ({ ...prev, [field]: value })),
-    []
+
+
+  // Validation functions that run on field changes
+  const validateEmail = useCallback((email: string) => {
+    if (!email.trim()) {
+      setValidationErrors(prev => ({ ...prev, email: "Email is required" }));
+      return false;
+    }
+
+    if (!isValidEmail(email)) {
+      setValidationErrors(prev => ({ ...prev, email: "Please provide a valid email address" }));
+      return false;
+    }
+
+    setValidationErrors(prev => {
+      const newErrors = { ...prev };
+      delete newErrors.email;
+      return newErrors;
+    });
+    return true;
+  }, []);
+
+  const validatePassword = useCallback((password: string) => {
+    if (!password.trim()) {
+      setValidationErrors(prev => ({ ...prev, password: "Password is required" }));
+      return false;
+    }
+
+    const errors = getPasswordValidationErrors(password);
+    if (errors.length > 0) {
+      setValidationErrors(prev => ({ ...prev, password: errors[0] }));
+      return false;
+    }
+
+    setValidationErrors(prev => {
+      const newErrors = { ...prev };
+      delete newErrors.password;
+      return newErrors;
+    });
+    return true;
+  }, []);
+
+  const validateName = useCallback((firstName: string, lastName: string) => {
+    const fullName = `${firstName.trim()} ${lastName.trim()}`;
+    if (!fullName.trim()) {
+      setValidationErrors(prev => ({ ...prev, name: "Name is required" }));
+      return false;
+    }
+
+    const errors = getNameValidationErrors(fullName);
+    if (errors.length > 0) {
+      setValidationErrors(prev => ({ ...prev, name: errors[0] }));
+      return false;
+    }
+
+    setValidationErrors(prev => {
+      const newErrors = { ...prev };
+      delete newErrors.name;
+      return newErrors;
+    });
+    return true;
+  }, []);
+
+  const validateConfirmPassword = useCallback((password: string, confirmPassword: string) => {
+    if (confirmPassword && password !== confirmPassword) {
+      setValidationErrors(prev => ({ ...prev, confirmPassword: "Passwords do not match" }));
+      return false;
+    }
+
+    setValidationErrors(prev => {
+      const newErrors = { ...prev };
+      delete newErrors.confirmPassword;
+      return newErrors;
+    });
+    return true;
+  }, []);
+
+    const updateForm = useCallback(
+    (field: keyof {
+      firstName: string;
+      lastName: string;
+      email: string;
+      password: string;
+      confirmPassword: string;
+    }) => (value: string) => {
+      setForm((prev) => {
+        const newForm = { ...prev, [field]: value };
+
+        // Validate field in real-time
+        if (field === 'email') {
+          validateEmail(value);
+        } else if (field === 'password') {
+          validatePassword(value);
+          // Also validate confirm password if it exists
+          if (prev.confirmPassword) {
+            validateConfirmPassword(value, prev.confirmPassword);
+          }
+        } else if (field === 'confirmPassword') {
+          validateConfirmPassword(prev.password, value);
+        } else if (field === 'firstName' || field === 'lastName') {
+          validateName(
+            field === 'firstName' ? value : prev.firstName,
+            field === 'lastName' ? value : prev.lastName
+          );
+        }
+
+        return newForm;
+      });
+    },
+    [validateEmail, validatePassword, validateConfirmPassword, validateName]
   );
 
   const handleSignUp = useCallback(async () => {
     const { firstName, lastName, email, password, confirmPassword } = form;
 
-    if (!firstName.trim() || !lastName.trim() || !email.trim() || !password.trim()) {
-      return Alert.alert("Error", "Please fill in all fields");
+    // Check if passwords match
+    if (password !== confirmPassword) {
+      toastService.showError("Passwords do not match");
+      return;
     }
 
-    if (!isValidEmail(email)) {
-      return Alert.alert("Error", "Please enter a valid email address");
-    }
+    // Validate form using server-matching validation
+    const { isValid, errors } = validateRegistrationForm(
+      email.trim().toLowerCase(),
+      password,
+      `${firstName.trim()} ${lastName.trim()}`
+    );
 
-    if (!isValidPassword(password)) {
-      return Alert.alert("Error", "Password must be at least 6 characters long");
-    }
-
-    if (confirmPassword && password !== confirmPassword) {
-      return Alert.alert("Error", "Passwords do not match");
+    if (!isValid) {
+      // Show the first validation error
+      toastService.showError(errors[0]);
+      return;
     }
 
     setLoading(true);
@@ -79,9 +193,9 @@ export const SignUpScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         email: email.trim().toLowerCase(),
         password: password.trim(),
       });
-      Alert.alert("Success", "Account created successfully! Welcome to FuturePad!");
+      toastService.showSuccess("Account created successfully! Welcome to FuturePad!");
     } catch (error: any) {
-      Alert.alert("Registration Failed", error.message || "Failed to create account");
+      toastService.showError(error.message || "Registration failed");
     } finally {
       setLoading(false);
     }
@@ -124,7 +238,7 @@ export const SignUpScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                   <Text style={styles.inputLabel}>First Name</Text>
                 </View>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, validationErrors.name && styles.inputError]}
                   value={form.firstName}
                   onChangeText={updateForm("firstName")}
                   placeholder="John"
@@ -139,7 +253,7 @@ export const SignUpScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                   <Text style={styles.inputLabel}>Last Name</Text>
                 </View>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, validationErrors.name && styles.inputError]}
                   value={form.lastName}
                   onChangeText={updateForm("lastName")}
                   placeholder="Doe"
@@ -148,6 +262,9 @@ export const SignUpScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                 />
               </View>
             </View>
+            {validationErrors.name && (
+              <Text style={styles.errorText}>{validationErrors.name}</Text>
+            )}
 
             {/* Email */}
             <View style={styles.inputContainer}>
@@ -156,7 +273,7 @@ export const SignUpScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                 <Text style={styles.inputLabel}>Email Address</Text>
               </View>
               <TextInput
-                style={styles.input}
+                style={[styles.input, validationErrors.email && styles.inputError]}
                 value={form.email}
                 onChangeText={updateForm("email")}
                 placeholder="your.email@example.com"
@@ -165,6 +282,9 @@ export const SignUpScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                 autoCapitalize="none"
                 returnKeyType="next"
               />
+              {validationErrors.email && (
+                <Text style={styles.errorText}>{validationErrors.email}</Text>
+              )}
             </View>
 
             {/* Password */}
@@ -175,7 +295,7 @@ export const SignUpScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
               </View>
               <View style={styles.passwordContainer}>
                 <TextInput
-                  style={styles.passwordInput}
+                  style={[styles.passwordInput, validationErrors.password && styles.inputError]}
                   value={form.password}
                   onChangeText={updateForm("password")}
                   placeholder="Create a strong password"
@@ -191,6 +311,9 @@ export const SignUpScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                   />
                 </TouchableOpacity>
               </View>
+              {validationErrors.password && (
+                <Text style={styles.errorText}>{validationErrors.password}</Text>
+              )}
             </View>
 
             {/* Confirm Password */}
@@ -201,7 +324,7 @@ export const SignUpScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
               </View>
               <View style={styles.passwordContainer}>
                 <TextInput
-                  style={styles.passwordInput}
+                  style={[styles.passwordInput, validationErrors.confirmPassword && styles.inputError]}
                   value={form.confirmPassword}
                   onChangeText={updateForm("confirmPassword")}
                   placeholder="Confirm your password"
@@ -218,6 +341,9 @@ export const SignUpScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                   />
                 </TouchableOpacity>
               </View>
+              {validationErrors.confirmPassword && (
+                <Text style={styles.errorText}>{validationErrors.confirmPassword}</Text>
+              )}
             </View>
 
             {/* Remember Me */}
@@ -433,5 +559,16 @@ const styles = StyleSheet.create({
   loginLink: {
     color: "#E69A8D",
     fontWeight: "600",
+  },
+  inputError: {
+    borderColor: "#E69A8D",
+    borderWidth: 2,
+    backgroundColor: "#FEF3F2",
+  },
+  errorText: {
+    color: "#D92D20",
+    fontSize: 12,
+    marginTop: 4,
+    marginLeft: 4,
   },
 });

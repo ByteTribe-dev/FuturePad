@@ -3,8 +3,6 @@ import React, { useEffect, useState } from "react";
 import {
   Alert,
   Dimensions,
-  Image,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -19,8 +17,32 @@ import { useUser } from "../store/useAppStore";
 import { useTheme } from "../theme/ThemeContext";
 import { letterService, Letter } from "../services";
 import { useIsFocused } from "@react-navigation/native";
+import CustomSafeAreaView from "@/components/CustomSafeAreaView";
 
 const { width, height } = Dimensions.get("window");
+
+const MS_PER_DAY = 1000 * 60 * 60 * 24;
+
+const getDaysUntilDelivery = (deliveryDate: string): number => {
+  const diffTime = new Date(deliveryDate).getTime() - Date.now();
+  return Math.max(0, Math.ceil(diffTime / MS_PER_DAY));
+};
+
+const calculateProgress = (createdAt: string, deliveryDate: string): number => {
+  const created = new Date(createdAt).getTime();
+  const delivery = new Date(deliveryDate).getTime();
+  const now = Date.now();
+  const totalTime = delivery - created;
+  
+  if (totalTime <= 0) return 100;
+  return Math.min(Math.max(0, ((now - created) / totalTime) * 100), 100);
+};
+
+const formatDaysUntilDelivery = (days: number): string => {
+  if (days <= 0) return "Opens Today";
+  if (days === 1) return "Opens Tomorrow";
+  return `Opens In ${days} Days`;
+};
 
 export const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { theme, isDark } = useTheme();
@@ -31,14 +53,10 @@ export const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Get locked letters (future delivery dates)
-  const lockedLetters = letters.filter((letter) => {
-    const deliveryDate = new Date(letter.deliveryDate);
-    const now = new Date();
-    return deliveryDate > now && !letter.isDelivered;
-  });
+  const lockedLetters = letters.filter((letter) => 
+    new Date(letter.deliveryDate) > new Date() && !letter.isDelivered
+  );
 
-  // Fetch letters from API
   const fetchLetters = async () => {
     try {
       const userLetters = await letterService.getLetters();
@@ -50,57 +68,13 @@ export const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     }
   };
 
-  // Refresh letters
   const onRefresh = async () => {
     setRefreshing(true);
     await fetchLetters();
     setRefreshing(false);
   };
 
-  // Calculate days until delivery
-  const getDaysUntilDelivery = (deliveryDate: string): number => {
-    const delivery = new Date(deliveryDate);
-    const now = new Date();
-    const diffTime = delivery.getTime() - now.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return Math.max(0, diffDays);
-  };
-
-  // Calculate progress (0-100%)
-  const calculateProgress = (
-    createdAt: string,
-    deliveryDate: string
-  ): number => {
-    const created = new Date(createdAt);
-    const delivery = new Date(deliveryDate);
-    const now = new Date();
-
-    const totalTime = delivery.getTime() - created.getTime();
-    const elapsedTime = now.getTime() - created.getTime();
-
-    if (totalTime <= 0) return 100;
-    const progress = (elapsedTime / totalTime) * 100;
-    return Math.min(Math.max(0, progress), 100);
-  };
-
-  // Load letters on component mount
-  useEffect(() => {
-    fetchLetters();
-  }, [isFocused]);
-
-  const handleWriteLetter = () => {
-    navigation.navigate("WriteLetter");
-  };
-
-  const handleViewArchive = () => {
-    navigation.navigate("LetterArchive");
-  };
-
-  const handleLetterPress = (letterId: string) => {
-    navigation.navigate("ReadLetter", { letterId });
-  };
-
-  const handleDeleteLetter = async (letterId: string) => {
+  const handleDeleteLetter = (letterId: string) => {
     Alert.alert(
       "Delete Letter",
       "Are you sure you want to delete this letter? This action cannot be undone.",
@@ -112,7 +86,6 @@ export const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           onPress: async () => {
             try {
               await letterService.deleteLetter(letterId);
-              // Refresh the letters list
               await fetchLetters();
               Alert.alert("Success", "Letter deleted successfully");
             } catch (error: any) {
@@ -124,55 +97,22 @@ export const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     );
   };
 
-  const getMoodEmoji = (mood: string) => {
-    const moodMap: { [key: string]: string } = {
-      happy: "😊",
-      sad: "😢",
-      excited: "🤩",
-      anxious: "😰",
-      grateful: "🙏",
-      reflective: "🤔",
-      calm: "😌",
-      refresh: "🌱",
-    };
-    return moodMap[mood] || "😊";
-  };
-
-  const formatDaysUntilDelivery = (letter: Letter) => {
-    const days = getDaysUntilDelivery(letter.deliveryDate);
-    if (days <= 0) return "Opens Today";
-    if (days === 1) return "Opens Tomorrow";
-    return `Opens In ${days} Days`;
-  };
+  useEffect(() => {
+    fetchLetters();
+  }, [isFocused]);
 
   const styles = createStyles(theme.colors);
 
   return (
-    <View style={styles.container}>
-      <StatusBar
-        barStyle={isDark ? "light-content" : "dark-content"}
-        backgroundColor={theme.colors.background}
-      />
-
-      {/* Background Blobs */}
-      <ImageBackground
-        source={require('../assets/images/home/BlobLeft.png')}
-        style={styles.leftBlob}
-        resizeMode="contain"
-      />
+    <>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
       <ImageBackground
         source={require('../assets/images/home/Blob.png')}
         style={styles.rightBlob}
         resizeMode="contain"
       />
-      <ImageBackground
-        source={require('../assets/images/home/BlobMiddle.png')}
-        style={styles.middleBlob}
-        resizeMode="contain"
-      />
 
-      <SafeAreaView style={[styles.safeArea, { zIndex: 1 }]}>
-        {/* Header */}
+      <CustomSafeAreaView style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.menuButton}
@@ -180,42 +120,22 @@ export const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           >
             <Ionicons name="menu" size={24} color={theme.colors.text} />
           </TouchableOpacity>
+          
           <View style={styles.userInfo}>
-            {user?.profileImage ? (
-              <Image
-                source={{ uri: user.profileImage }}
-                style={styles.avatar}
-              />
-            ) : (
-              <View style={styles.avatarPlaceholder}>
-                <Ionicons
-                  name="person"
-                  size={20}
-                  color={theme.colors.textSecondary}
-                />
-              </View>
-            )}
             <View style={styles.userTextContainer}>
               <Text style={styles.welcomeText}>Welcome Back 👋</Text>
               <Text style={styles.userName}>
-                {user ? `${user.name}`.trim() || "User" : "User"}
+                {user?.name?.trim() || "User"}
               </Text>
             </View>
           </View>
+          
           <View style={styles.headerActions}>
             <TouchableOpacity style={styles.headerButton}>
-              <Ionicons
-                name="search-outline"
-                size={22}
-                color={theme.colors.text}
-              />
+              <Ionicons name="search-outline" size={22} color={theme.colors.text} />
             </TouchableOpacity>
             <TouchableOpacity style={styles.headerButton}>
-              <Ionicons
-                name="notifications-outline"
-                size={22}
-                color={theme.colors.text}
-              />
+              <Ionicons name="notifications-outline" size={22} color={theme.colors.text} />
             </TouchableOpacity>
           </View>
         </View>
@@ -236,11 +156,7 @@ export const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             </View>
           ) : lockedLetters.length === 0 ? (
             <View style={styles.emptyState}>
-              <Ionicons
-                name="mail-open-outline"
-                size={80}
-                color={theme.colors.textSecondary}
-              />
+              <Ionicons name="mail-open-outline" size={80} color={theme.colors.textSecondary} />
               <Text style={styles.emptyTitle}>No locked letters yet</Text>
               <Text style={styles.emptySubtitle}>
                 Write your first letter to your future self
@@ -248,121 +164,93 @@ export const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             </View>
           ) : (
             <View style={styles.lettersContainer}>
-              {lockedLetters.map((letter) => (
-                <TouchableOpacity
-                  key={letter._id}
-                  style={styles.letterCard}
-                  onPress={() => handleLetterPress(letter._id)}
-                >
-                  <View style={styles.letterHeader}>
-                    <View style={styles.letterIconContainer}>
-                      <Ionicons name="mail" size={20} color="#FFFFFF" />
+              {lockedLetters.map((letter) => {
+                const days = getDaysUntilDelivery(letter.deliveryDate);
+                const progress = calculateProgress(letter.createdAt, letter.deliveryDate);
+                
+                return (
+                  <TouchableOpacity
+                    key={letter._id}
+                    style={styles.letterCard}
+                    onPress={() => navigation.navigate("ReadLetter", { letterId: letter._id })}
+                  >
+                    <View style={styles.letterHeader}>
+                      <View style={styles.letterIconContainer}>
+                        <Ionicons name="mail" size={20} color="#FFFFFF" />
+                      </View>
+                      <View style={styles.letterActions}>
+                        <TouchableOpacity
+                          style={styles.actionButton}
+                          onPress={(e) => e.stopPropagation()}
+                        >
+                          <Ionicons
+                            name="lock-closed-outline"
+                            size={18}
+                            color={theme.colors.textSecondary}
+                          />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.actionButton}
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            handleDeleteLetter(letter._id);
+                          }}
+                        >
+                          <Ionicons name="trash-outline" size={18} color={theme.colors.error} />
+                        </TouchableOpacity>
+                      </View>
                     </View>
-                    <View style={styles.letterActions}>
-                      <TouchableOpacity
-                        style={styles.actionButton}
-                        onPress={(e) => {
-                          e.stopPropagation();
-                          // Lock icon - maybe show letter details
-                        }}
-                      >
-                        <Ionicons
-                          name="lock-closed-outline"
-                          size={18}
-                          color={theme.colors.textSecondary}
-                        />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.actionButton}
-                        onPress={(e) => {
-                          e.stopPropagation();
-                          handleDeleteLetter(letter._id);
-                        }}
-                      >
-                        <Ionicons
-                          name="trash-outline"
-                          size={18}
-                          color={theme.colors.error}
-                        />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
 
-                  <Text style={styles.letterTitle}>{letter.title}</Text>
-                  <Text style={styles.letterMood}>
-                    Mood:{" "}
-                    {letter.mood.charAt(0).toUpperCase() + letter.mood.slice(1)}
-                  </Text>
-
-                  <View style={styles.deliveryInfo}>
-                    <Ionicons
-                      name="time-outline"
-                      size={14}
-                      color={theme.colors.textSecondary}
-                    />
-                    <Text style={styles.letterStatus}>
-                      {formatDaysUntilDelivery(letter)}
+                    <Text style={styles.letterTitle}>{letter.title}</Text>
+                    <Text style={styles.letterMood}>
+                      Mood: {letter.mood.charAt(0).toUpperCase() + letter.mood.slice(1)}
                     </Text>
-                  </View>
 
-                  <View style={styles.progressContainer}>
-                    <View style={styles.progressBar}>
-                      <View
-                        style={[
-                          styles.progressFill,
-                          {
-                            width: `${calculateProgress(
-                              letter.createdAt,
-                              letter.deliveryDate
-                            )}%`,
-                          },
-                        ]}
-                      />
+                    <View style={styles.deliveryInfo}>
+                      <Ionicons name="time-outline" size={14} color={theme.colors.textSecondary} />
+                      <Text style={styles.letterStatus}>
+                        {formatDaysUntilDelivery(days)}
+                      </Text>
                     </View>
-                    <Text style={styles.progressText}>
-                      {Math.round(
-                        calculateProgress(letter.createdAt, letter.deliveryDate)
-                      )}
-                      %
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              ))}
+
+                    <View style={styles.progressContainer}>
+                      <View style={styles.progressBar}>
+                        <View style={[styles.progressFill, { width: `${progress}%` }]} />
+                      </View>
+                      <Text style={styles.progressText}>{Math.round(progress)}%</Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           )}
 
-          {/* Bottom spacing for the fixed card */}
           <View style={styles.bottomSpacing} />
         </ScrollView>
 
-        {/* Write Letter Card - Fixed at Bottom with Button Inside */}
         <View style={styles.writeCard}>
           <View style={styles.writeCardContent}>
             <View style={styles.writeCardIconContainer}>
               <Ionicons name="mail" size={40} color="#FFFFFF" />
             </View>
-            <Text style={styles.writeCardTitle}>Hey You. Let's Write.</Text>
-            <Text style={styles.writeCardSubtitle}>
-              Ready To Write Something Just For You?
-            </Text>
+            <View style={styles.writeCardTextContainer}>
+              <Text style={styles.writeCardTitle}>Hey You. Let's Write.</Text>
+              <Text style={styles.writeCardSubtitle}>
+                Ready To Write Something Just For You?
+              </Text>
+            </View>
           </View>
 
-          {/* Button Inside the Card */}
           <TouchableOpacity
             style={styles.writeButton}
-            onPress={handleWriteLetter}
+            onPress={() => navigation.navigate("WriteLetter")}
           >
-            <Ionicons
-              name="create"
-              size={20}
-              color="#FFFFFF"
-              style={styles.writeButtonIcon}
-            />
+            <Ionicons name="create" size={20} color="#FFFFFF" style={styles.writeButtonIcon} />
             <Text style={styles.writeButtonText}>Write A New Letter</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
-    </View>
+      </CustomSafeAreaView>
+    </>
   );
 };
 
@@ -372,35 +260,14 @@ const createStyles = (colors: any) =>
       flex: 1,
       backgroundColor: colors.background,
     },
-    safeArea: {
-      flex: 1,
-    },
-    leftBlob: {
-      position: 'absolute',
-      left: -30,
-      top: 100,
-      width: 180,
-      height: 280,
-      opacity: 0.8,
-      zIndex: 0,
-    },
     rightBlob: {
       position: 'absolute',
-      right: -20,
-      top: 60,
-      width: 150,
-      height: 220,
-      opacity: 0.8,
-      zIndex: 0,
-    },
-    middleBlob: {
-      position: 'absolute',
-      right: 30,
-      bottom: height * 0.4,
-      width: 250,
+      right: 50,
+      top: -100,
+      width: 350,
       height: 350,
-      opacity: 0.7,
-      zIndex: 0,
+      opacity: 1,
+      zIndex: 9999,
     },
     header: {
       flexDirection: "row",
@@ -409,6 +276,7 @@ const createStyles = (colors: any) =>
       paddingHorizontal: 20,
       paddingVertical: 16,
       backgroundColor: "transparent",
+          zIndex:999
     },
     menuButton: {
       width: 40,
@@ -429,21 +297,6 @@ const createStyles = (colors: any) =>
       flex: 1,
       justifyContent: "center",
       marginLeft: 12,
-    },
-    avatar: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      marginRight: 12,
-    },
-    avatarPlaceholder: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: colors.surface,
-      justifyContent: "center",
-      alignItems: "center",
-      marginRight: 12,
     },
     userTextContainer: {
       flex: 1,
@@ -592,7 +445,7 @@ const createStyles = (colors: any) =>
       right: 0,
       backgroundColor: colors.card,
       borderRadius: 24,
-      padding: 28,
+      padding: 16,
       marginHorizontal: 20,
       marginBottom: 20,
       alignItems: "center",
@@ -606,19 +459,26 @@ const createStyles = (colors: any) =>
     },
     writeCardContent: {
       alignItems: "center",
-      marginBottom: 20,
+      marginBottom: 12,
+      flexDirection: 'row',
+      justifyContent: 'space-around',
+      flex: 1,
     },
     writeCardIconContainer: {
-      width: 80,
-      height: 80,
+      width: 70,
+      height: 70,
       borderRadius: 40,
       backgroundColor: colors.primary,
       justifyContent: "center",
       alignItems: "center",
       marginBottom: 16,
     },
+    writeCardTextContainer: {
+      flex: 1,
+      marginLeft: 20,
+    },
     writeCardTitle: {
-      fontSize: 20,
+      fontSize: 14,
       fontWeight: "700",
       color: colors.text,
       marginBottom: 8,
@@ -626,11 +486,10 @@ const createStyles = (colors: any) =>
     writeCardSubtitle: {
       fontSize: 14,
       color: colors.textSecondary,
-      textAlign: "center",
       lineHeight: 20,
     },
     bottomSpacing: {
-      height: 200, // Space for the fixed card
+      height: 200,
     },
     loadingContainer: {
       alignItems: "center",

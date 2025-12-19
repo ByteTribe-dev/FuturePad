@@ -123,7 +123,7 @@ export const useResponsiveBorderRadius = () => {
 
 // Hook for grid system
 export const useResponsiveGrid = () => {
-  const { screenSize } = useResponsive();
+  const { screenSize, dimensions } = useResponsive();
   const columns = responsiveUtils.getGridColumns();
   
   return {
